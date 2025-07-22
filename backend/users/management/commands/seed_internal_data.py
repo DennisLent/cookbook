@@ -1,4 +1,5 @@
 # recipes/management/commands/seed_internal_data.py
+import os
 from django.core.management.base import BaseCommand
 from django.db import transaction, connection
 from django.contrib.auth import get_user_model
@@ -61,7 +62,21 @@ SEED_TAGS = [
 class Command(BaseCommand):
     help = "Seeds the database with a default user and some example recipes"
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--username",
+            default=os.getenv("DJANGO_SUPERUSER_USERNAME", "admin"),
+            help="Username for the created superuser",
+        )
+        parser.add_argument(
+            "--password",
+            default=os.getenv("DJANGO_SUPERUSER_PASSWORD", "admin123"),
+            help="Password for the created superuser",
+        )
+
     def handle(self, *args, **options):
+        username = options["username"]
+        password = options["password"]
 
         # remove all previous recipes
         with transaction.atomic():
@@ -78,11 +93,11 @@ class Command(BaseCommand):
                 """)
         User = get_user_model()
 
-        # 1. Create or get superuser 'dennis'
-        dennis, created = User.objects.get_or_create(
-            username="admin",
+        # 1. Create or get superuser
+        admin_user, created = User.objects.get_or_create(
+            username=username,
             defaults={
-                "first_name": "Admin",
+                "first_name": username.capitalize(),
                 "last_name": "Admin",
                 "bio": "Default admin :P",
                 "is_superuser": True,
@@ -90,13 +105,13 @@ class Command(BaseCommand):
             }
         )
         if created:
-            dennis.set_password("admin123")
-            dennis.save()
+            admin_user.set_password(password)
+            admin_user.save()
             self.stdout.write(self.style.SUCCESS(
-                "Created superuser 'dennis' (password 'admin123')"
+                f"Created superuser '{username}'"
             ))
         else:
-            self.stdout.write("Superuser 'dennis' already exists")
+            self.stdout.write(f"Superuser '{username}' already exists")
 
         tag_objs = {}
         for tag_name in SEED_TAGS:
@@ -123,7 +138,7 @@ class Command(BaseCommand):
                     title=title,
                     description=description,
                     instructions=instructions,
-                    created_by=dennis,
+                    created_by=admin_user,
                 )
 
                 # Parse and create ingredients

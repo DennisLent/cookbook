@@ -1,29 +1,33 @@
-version: '3.8'
-
+version: '3.9'
 services:
-  backend:
-    build:
-      context: ./backend
-    command: gunicorn app.wsgi:application --bind 0.0.0.0:8000
-    volumes:
-      - ./backend:/app
+  db:
+    image: postgres:15
     env_file:
-      - ./backend/.env
-    expose:
-      - 8000
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - ./backend/media:/app/media
+    ports:
+      - "8000:8000"
 
   frontend:
     build:
-      context: ./frontend
+      context: .
+      dockerfile: cookbook-app/Dockerfile
     depends_on:
       - backend
-
-  nginx:
-    image: nginx:alpine
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     ports:
       - "80:80"
-    depends_on:
-      - backend
-      - frontend
+
+volumes:
+  postgres_data:
