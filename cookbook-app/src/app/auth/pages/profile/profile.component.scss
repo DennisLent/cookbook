@@ -1,0 +1,122 @@
+/* Container centers the card */
+.profile-container {
+  display: flex;
+  justify-content: center;
+  height: 100vh;
+  padding: 1rem;
+  background: var(--color-bg);
+}
+
+/* Card styling */
+.profile-card {
+  width: 100%;
+  max-width: 900px;
+  height: fit-content;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+}
+
+/* Header spacing */
+.profile-header {
+    display: flex;
+    align-items: center;
+
+    mat-card-title {
+        display: flex;
+        align-items: center;
+        font-size: 1.75rem;
+        margin-bottom: 0.25rem;
+    }
+    mat-card-subtitle {
+        color: var(--color-muted);
+    }
+}
+
+/* Status messages */
+.status-messages {
+  margin-bottom: 1rem;
+  .error {
+    color: var(--color-warn);
+    text-align: center;
+    margin: 0.5rem 0;
+  }
+  .success {
+    color: var(--color-success);
+    text-align: center;
+    margin: 0.5rem 0;
+  }
+}
+
+/* Grid layout: stack on mobile, two columns on tablet+ */
+.profile-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+
+  /* Avatar section centered */
+  .avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+
+    .avatar-img {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #ddd;
+    }
+
+    button {
+      text-transform: none;
+    }
+  }
+
+  /* Form styling */
+  .profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    .full-width {
+      width: 100%;
+    }
+
+    .save-btn {
+      margin-top: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      text-transform: none;
+    }
+  }
+}
+
+/* Tablet / Desktop: two-column layout */
+@media (min-width: 768px) {
+  .profile-grid {
+    flex-direction: row;
+    align-items: flex-start;
+
+    .avatar-section {
+      flex: 0 0 200px;
+      padding-top: 1rem;
+    }
+
+    .profile-form {
+      flex: 1;
+    }
+  }
+}
+
+/* Very small screens: reduce padding */
+@media (max-width: 360px) {
+  .profile-container {
+    padding: 0.5rem;
+  }
+  .profile-grid {
+    gap: 1rem;
+  }
+}

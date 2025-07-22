@@ -1,0 +1,32 @@
+mat-toolbar {
+  height: fit-content;
+}
+
+.top-strip {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+.main-toolbar {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.app-title {
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.app-title.center {
+  text-align: center;
+  width: 100%;
+}
+
+.button-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

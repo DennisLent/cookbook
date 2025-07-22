@@ -1,0 +1,122 @@
+<div class="register-container">
+  <mat-card class="register-card">
+    <mat-card-header class="register-header">
+      <div class="header-icon">
+        <mat-icon>person_add</mat-icon>
+      </div>
+      <mat-card-title>Create an Account</mat-card-title>
+      <mat-card-subtitle>Join us and start cooking!</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form #f="ngForm" class="register-form" (ngSubmit)="submit()">
+        <!-- Username -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Username</mat-label>
+          <input
+            matInput
+            name="username"
+            [(ngModel)]="form.username"
+            required
+            minlength="3"
+          />
+          <mat-icon matPrefix>person</mat-icon>
+        </mat-form-field>
+
+        <!-- Password -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Password</mat-label>
+          <input
+            matInput
+            [type]="hidePassword ? 'password' : 'text'"
+            name="password"
+            [(ngModel)]="form.password"
+            required
+            minlength="6"
+          />
+          <mat-icon matPrefix>lock</mat-icon>
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            aria-label="Toggle password visibility"
+            (click)="hidePassword = !hidePassword"
+          >
+            <mat-icon>
+              {{ hidePassword ? 'visibility_off' : 'visibility' }}
+            </mat-icon>
+          </button>
+        </mat-form-field>
+
+        <!-- Confirm Password -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Confirm Password</mat-label>
+          <input
+            matInput
+            [type]="hidePassword ? 'password' : 'text'"
+            name="password2"
+            [(ngModel)]="form.password2"
+            required
+            minlength="6"
+          />
+          <mat-icon matPrefix>lock</mat-icon>
+        </mat-form-field>
+
+        <!-- Bio -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Bio (optional)</mat-label>
+          <textarea
+            matInput
+            name="bio"
+            [(ngModel)]="form.bio"
+            rows="3"
+            maxlength="200"
+          ></textarea>
+          <mat-icon matPrefix>edit</mat-icon>
+        </mat-form-field>
+
+        <!-- Avatar Upload -->
+        <div class="avatar-upload">
+          <input
+            #avatarInput
+            type="file"
+            accept="image/*"
+            hidden
+            (change)="onFileSelected($event)"
+          />
+          <button
+            mat-stroked-button
+            color="primary"
+            type="button"
+            (click)="triggerAvatarInput()"
+          >
+            <mat-icon>photo_camera</mat-icon>
+            Upload Avatar
+          </button>
+          <span class="avatar-filename" *ngIf="form.avatar">
+            {{ form.avatar.name }}
+          </span>
+        </div>
+
+        <!-- Submit -->
+        <button
+          mat-flat-button
+          color="accent"
+          class="full-width"
+          [disabled]="f.invalid"
+          type="submit"
+        >
+          Register
+        </button>
+
+        <!-- Error message -->
+        <p *ngIf="error" class="error-msg">{{ error }}</p>
+      </form>
+    </mat-card-content>
+
+    <mat-card-actions class="card-footer">
+      <span>Already have an account?</span>
+      <a mat-button color="primary" routerLink="/login">Login</a>
+    </mat-card-actions>
+  </mat-card>
+</div>

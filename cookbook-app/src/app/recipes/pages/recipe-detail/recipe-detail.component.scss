@@ -1,0 +1,132 @@
+/* center status messages */
+.status {
+  text-align: center;
+  margin: 2rem 1rem;
+  &.error p {
+    color: var(--color-warn);
+  }
+}
+
+.detail-container {
+  padding: 1rem;
+}
+
+.detail-card {
+  max-width: 800px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+
+  img {
+    width: 100%;
+    height: auto;
+    max-height: 400px;
+    object-fit: cover;
+  }
+
+  .divider {
+    margin: 1rem 1rem;
+  }
+
+  .description {
+    margin: 1rem 0;
+    font-style: italic;
+    color: var(--color-muted);
+    p {
+      margin: 0;
+      line-height: 1.5;
+    }
+  }
+
+  mat-card-header {
+    padding: 1rem;
+  }
+
+  mat-card-content {
+    padding: 0 1rem 1rem;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .ingredients {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+
+    mat-checkbox {
+      font-size: 0.95rem;
+    }
+  }
+
+  .instructions {
+    padding-left: 1.25rem;
+    margin: 0;
+    li {
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  mat-card-actions {
+    padding: 1rem;
+    display: flex;
+    justify-content: flex-start;
+
+    button mat-icon {
+      margin-right: 0.25rem;
+    }
+  }
+}
+
+.comments-section {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+
+  h4 {
+    margin-bottom: 1rem;
+  }
+
+  .comment {
+    border-bottom: 1px solid #eee;
+    padding: 0.75rem 0;
+
+    .comment-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      color: var(--color-muted);
+    }
+    .comment-body {
+      margin: 0;
+      font-size: 1rem;
+    }
+  }
+
+  .no-comments {
+    text-align: center;
+    color: var(--color-muted);
+    .no-comments-img {
+      width: 120px;
+      margin-bottom: 0.5rem;
+      opacity: 0.6;
+    }
+  }
+}
+
+@media (max-width: 600px) {
+  .detail-container {
+    padding: 0.5rem;
+  }
+  .detail-card {
+    mat-card-content, mat-card-actions {
+      padding: 0.5rem;
+    }
+  }
+}

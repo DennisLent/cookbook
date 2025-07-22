@@ -1,0 +1,111 @@
+<!-- loading / error states -->
+<section *ngIf="loading" class="status"><p>Loading recipe…</p></section>
+<section *ngIf="error" class="status error"><p>{{ error }}</p></section>
+
+<!-- main detail -->
+<section *ngIf="recipe" class="detail-container">
+  <mat-card class="detail-card">
+    <img
+      mat-card-image
+      [src]="recipe.image || placeholderImage"
+      alt="{{ recipe.title }}"
+    />
+
+    <mat-divider class="divider"></mat-divider>
+
+    <mat-card-header>
+      <mat-card-title>{{ recipe.title }}</mat-card-title>
+      <mat-card-subtitle>
+        By {{ recipe.created_by }} &middot;
+        {{ recipe.created_at | date:'mediumDate' }}
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <!-- Tags -->
+      <div class="tags" *ngIf="recipe.tags.length">
+        <mat-chip *ngFor="let tag of recipe.tags" color="primary">
+          {{ tag }}
+        </mat-chip>
+      </div>
+
+      <div class="description" *ngIf="recipe.description">
+        <p>{{ recipe.description }}</p>
+      </div>
+
+      <!-- Times: prep, cook, total -->
+      <div class="times" *ngIf="
+          recipe.prep_time ||
+          recipe.cook_time ||
+          recipe.total_time
+        ">
+        <div *ngIf="recipe.prep_time">
+          <mat-icon>timer</mat-icon>
+          <strong>Prep:</strong> {{ recipe.prep_time }}
+        </div>
+        <div *ngIf="recipe.cook_time">
+          <mat-icon>restaurant</mat-icon>
+          <strong>Cook:</strong> {{ recipe.cook_time }}
+        </div>
+        <div *ngIf="recipe.total_time">
+          <mat-icon>schedule</mat-icon>
+          <strong>Total:</strong> {{ recipe.total_time }}
+        </div>
+      </div>
+
+      <mat-divider class="divider"></mat-divider>
+
+      <!-- Ingredients -->
+      <h4>Ingredients</h4>
+      <div class="ingredients">
+        <mat-checkbox
+          *ngFor="let ingr of recipe.ingredients; let i = index"
+          [(ngModel)]="ingredientChecks[i]"
+        >
+          {{ ingr.amount }} {{ ingr.ingredient.name }}
+        </mat-checkbox>
+      </div>
+
+      <mat-divider class="divider"></mat-divider>
+
+      <!-- Instructions -->
+      <h4>Instructions</h4>
+      <ol class="instructions">
+        <li *ngFor="let step of instructionsArray">{{ step }}</li>
+      </ol>
+    </mat-card-content>
+
+    <mat-card-actions>
+      <button mat-button routerLink="/recipes">
+        <mat-icon>arrow_back</mat-icon>
+        Back to Recipes
+      </button>
+    </mat-card-actions>
+  </mat-card>
+</section>
+
+<!-- Comments Section -->
+<section class="comments-section">
+  <h4>Comments</h4>
+
+  <ng-container *ngIf="recipe?.comments?.length; else noComments">
+    <div class="comment" *ngFor="let c of recipe!.comments">
+      <div class="comment-header">
+        <strong>{{ c.author }}</strong>
+        <span>{{ c.created_at | date:'short' }}</span>
+      </div>
+      <p class="comment-body">{{ c.text }}</p>
+    </div>
+  </ng-container>
+
+  <ng-template #noComments>
+    <div class="no-comments">
+      <img
+        [src]="emptyCommentsImage"
+        alt="No comments"
+        class="no-comments-img"
+      />
+      <p>No comments just yet...</p>
+    </div>
+  </ng-template>
+</section>

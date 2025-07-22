@@ -1,0 +1,79 @@
+<!-- Top bar with links -->
+<mat-toolbar class="top-strip" color="primary">
+  <a href="https://github.com/DennisLent" target="_blank" mat-icon-button>
+    <ng-icon name="ionLogoGithub" size="20" class="external-icon"></ng-icon>
+  </a>
+  <a href="https://www.linkedin.com/in/dennis-lentschig-4a2063186/" target="_blank" mat-icon-button>
+    <ng-icon name="ionLogoLinkedin" size="20" class="external-icon"></ng-icon>
+  </a>
+</mat-toolbar>
+
+<mat-divider></mat-divider>
+
+<!-- Main toolbar -->
+<mat-toolbar class="main-toolbar" color="primary">
+  <!-- Mobile hamburger -->
+  <button *ngIf="isHandset" mat-icon-button (click)="menuToggle.emit()">
+    <mat-icon>menu</mat-icon>
+  </button>
+
+  <!-- App name -->
+  <span class="app-title" [class.center]="isHandset">Cookbook</span>
+
+  <!-- Desktop nav links -->
+  <ng-container *ngIf="!isHandset" class="nav-links">
+
+    <a mat-button routerLink="">
+      <div class="button-label">
+        <ng-icon name="ionBook" size="20" class="external-icon">Recipes</ng-icon>
+        Recipes
+      </div> 
+    </a>
+
+    <a mat-button routerLink="/add">
+      <div class="button-label">
+        <ng-icon name="ionAddCircle" size="20" class="external-icon">Add New Recipe</ng-icon>
+        Add New Recipe
+      </div> 
+    </a>
+
+    <a mat-button routerLink="/plan">
+      <div class="button-label">
+        <ng-icon name="ionAnalytics" size="20" class="external-icon">Generate Meal Plan</ng-icon>
+        Generate Meal Plan
+      </div> 
+    </a>
+
+    <a mat-button routerLink="/suggest">
+      <div class="button-label">
+        <ng-icon name="ionReceipt" size="20" class="external-icon">Suggest a Recipe</ng-icon>
+        Suggest a Recipe
+      </div> 
+    </a>
+  </ng-container>
+
+  <span class="spacer"></span>
+
+  <!-- Avatar or login -->
+  <ng-container *ngIf="isLoggedIn(); else loginLink">
+    <button mat-icon-button [matMenuTriggerFor]="userMenu">
+      <mat-icon>account_circle</mat-icon>
+    </button>
+    <mat-menu #userMenu="matMenu">
+      <button mat-menu-item routerLink="/profile">
+        <mat-icon>person</mat-icon>
+        <span>Profile</span>
+      </button>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Logout</span>
+      </button>
+    </mat-menu>
+  </ng-container>
+
+  <ng-template #loginLink>
+    <button mat-icon-button routerLink="/login">
+      <mat-icon>person</mat-icon>
+    </button>
+  </ng-template>
+</mat-toolbar>

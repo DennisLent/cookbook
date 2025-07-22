@@ -1,0 +1,18 @@
+- Create backend container
+    - Install python dependencies
+    - Create superuser from cli
+    - Load existing database? y/n
+        If yes -> point to database location and load
+    - Seed data from db? y/n
+        If yes --> seed data and use create superuser for recipes
+    - Install ollama
+        - Ask which model to use as default
+    - Install ffmpeg
+    - Ask for specific vosk model (if wanted) save in backend/recipes/extraction/utils
+        - Else install: https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip
+
+- Create frontend container
+    - Install npm dependencies
+
+- Run hehe
+

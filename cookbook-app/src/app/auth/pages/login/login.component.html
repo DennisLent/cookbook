@@ -1,0 +1,78 @@
+<div class="login-container">
+  <mat-card class="login-card">
+    <ng-container *ngIf="!showGreeting; else greetingBlock">
+      <mat-card-header class="login-header">
+        <div class="header-icon">
+          <mat-icon>lock</mat-icon>
+        </div>
+        <mat-card-title>Welcome Back</mat-card-title>
+        <mat-card-subtitle>Please sign in to continue</mat-card-subtitle>
+      </mat-card-header>
+
+      <mat-card-content>
+        <form (ngSubmit)="login()" class="login-form">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Username</mat-label>
+            <input
+              matInput
+              type="text"
+              [(ngModel)]="username"
+              name="username"
+              required
+            />
+            <mat-icon matPrefix>person</mat-icon>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Password</mat-label>
+            <input
+              matInput
+              [type]="hidePassword ? 'password' : 'text'"
+              [(ngModel)]="password"
+              name="password"
+              required
+            />
+            <mat-icon matPrefix>lock</mat-icon>
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Toggle password visibility"
+              (click)="togglePasswordVisibility()"
+            >
+              <mat-icon>{{
+                hidePassword ? 'visibility_off' : 'visibility'
+              }}</mat-icon>
+            </button>
+          </mat-form-field>
+
+          <button
+            mat-flat-button
+            color="primary"
+            class="full-width login-btn"
+            type="submit"
+          >
+            Login
+          </button>
+
+          <p *ngIf="error" class="error-msg">{{ error }}</p>
+
+          <div class="register-link">
+            <span>Don’t have an account?</span>
+            <a mat-button color="accent" routerLink="/register"
+              >Register</a
+            >
+          </div>
+        </form>
+      </mat-card-content>
+    </ng-container>
+
+    <ng-template #greetingBlock>
+      <div class="greeting-container">
+        <mat-icon class="greeting-icon">sentiment_satisfied</mat-icon>
+        <h2>Hello, {{ username }}!</h2>
+        <p>Great to see you 😊<br />Redirecting shortly…</p>
+      </div>
+    </ng-template>
+  </mat-card>
+</div>

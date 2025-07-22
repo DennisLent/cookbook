@@ -1,0 +1,19 @@
+<div class="carousel-wrapper">
+  <button class="nav-button left" mat-icon-button (click)="scrollPrev()">
+    <mat-icon>chevron_left</mat-icon>
+  </button>
+
+  <div class="carousel-scroll-container" #scrollContainer>
+    <div [routerLink]="['/recipes', recipe.id]" class="carousel-card" *ngFor="let recipe of recipes">
+      <img [src]="recipe.image || placeholderImage" alt="{{ recipe.title }}" />
+      <div class="recipe-info">
+        <h3>{{ recipe.title }}</h3>
+      </div>
+    </div>
+  </div>
+
+  <button class="nav-button right" mat-icon-button (click)="scrollNext()">
+    <mat-icon>chevron_right</mat-icon>
+  </button>
+</div>
+

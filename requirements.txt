@@ -1,0 +1,15 @@
+django
+psycopg2-binary
+python-decouple
+Pillow
+djangorestframework
+djangorestframework-simplejwt
+recipe-scrapers
+ingredient-parser-nlp
+django-cors-headers
+youtube-transcript-api
+ollama
+json5
+instaloader
+ffmpeg-python
+vosk

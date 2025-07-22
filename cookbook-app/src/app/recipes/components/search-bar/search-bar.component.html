@@ -1,0 +1,41 @@
+<div class="search-bar">
+  <mat-form-field class="search-input" appearance="outline">
+    <mat-label>Search recipes</mat-label>
+    <input
+      type="text"
+      matInput
+      [(ngModel)]="term"
+      (ngModelChange)="emitSearch()"
+      [matAutocomplete]="auto" />
+
+    <mat-autocomplete #auto="matAutocomplete">
+      <mat-option *ngFor="let option of autocompleteOptions" [value]="option">
+        {{ option }}
+      </mat-option>
+    </mat-autocomplete>
+  </mat-form-field>
+
+  <mat-form-field class="tag-select" appearance="outline">
+    <mat-label>Filter by tags</mat-label>
+    <mat-select
+      multiple
+      [(ngModel)]="selectedTags"
+      (selectionChange)="emitSearch()">
+      <mat-option *ngFor="let tag of availableTags" [value]="tag.name">
+        {{ tag.name }}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+
+</div>
+
+<div class="active-tags" *ngIf="selectedTags.length">
+  <mat-chip
+    *ngFor="let tag of selectedTags"
+    color="accent"
+    removable
+    (removed)="removeTag(tag)">
+    {{ tag }}
+    <mat-icon matChipRemove>cancel</mat-icon>
+  </mat-chip>
+</div>

@@ -1,0 +1,108 @@
+<div class="profile-container">
+  <mat-card class="profile-card">
+    <mat-card-header class="profile-header">
+      <mat-card-title>Your Profile</mat-card-title>
+      <mat-card-subtitle>Manage your account information</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <!-- Status messages -->
+      <div class="status-messages">
+        <p class="error"   *ngIf="error">{{ error }}</p>
+        <p class="success" *ngIf="success">Profile updated!</p>
+      </div>
+
+      <div class="profile-grid">
+        <!-- Avatar column -->
+        <div class="avatar-section">
+          <img
+            class="avatar-img"
+            [src]="
+              avatarPreview ||
+              user.avatar ||
+              'assets/fallback-avatar.png'
+            "
+            alt="Your avatar"
+          />
+          <input
+            #avatarInput
+            type="file"
+            accept="image/*"
+            hidden
+            (change)="onFileChange($event)"
+          />
+          <button
+            mat-stroked-button
+            color="primary"
+            (click)="avatarInput.click()"
+          >
+            <mat-icon>photo_camera</mat-icon>
+            Change Avatar
+          </button>
+        </div>
+
+        <!-- Form column -->
+        <form
+          class="profile-form"
+          #f="ngForm"
+          (ngSubmit)="saveChanges()"
+        >
+          <!-- Username (read-only) -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Username</mat-label>
+            <input
+              matInput
+              [value]="user.username"
+              disabled
+            />
+          </mat-form-field>
+
+          <!-- First Name -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>First Name</mat-label>
+            <input
+              matInput
+              name="first_name"
+              [(ngModel)]="updatedUser.first_name"
+              required
+            />
+          </mat-form-field>
+
+          <!-- Last Name -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Last Name</mat-label>
+            <input
+              matInput
+              name="last_name"
+              [(ngModel)]="updatedUser.last_name"
+              required
+            />
+          </mat-form-field>
+
+          <!-- Bio -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Bio</mat-label>
+            <textarea
+              matInput
+              name="bio"
+              [(ngModel)]="updatedUser.bio"
+              rows="4"
+            ></textarea>
+          </mat-form-field>
+
+          <!-- Save button -->
+          <button
+            mat-flat-button
+            color="primary"
+            class="full-width save-btn"
+            [disabled]="f.invalid"
+            type="submit"
+          >
+            <mat-icon>save</mat-icon>
+            Save Changes
+          </button>
+        </form>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

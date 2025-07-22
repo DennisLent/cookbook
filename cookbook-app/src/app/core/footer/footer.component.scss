@@ -1,0 +1,20 @@
+.footer-toolbar {
+  position: static;
+  bottom: 0;
+  width: 100%;
+  justify-content: center;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  .spacer {
+    flex: 1 1 auto;
+  }
+
+  .message {
+    font-style: italic;
+    opacity: 0.85;
+  }
+}

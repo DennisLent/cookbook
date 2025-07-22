@@ -1,0 +1,33 @@
+.search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 0 1rem;
+
+  // make each field expand
+  .search-input,
+  .tag-select {
+    flex: 1 1 240px;
+    min-width: 200px;
+  }
+}
+
+// the row of selected‐tag chips
+.active-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  overflow-x: auto;
+
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+  }
+}
