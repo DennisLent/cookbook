@@ -4,6 +4,13 @@ import { environment } from '../../environments/environment';
 import { Observable } from 'rxjs';
 import { Recipe, Tag, Ingredient } from './recipes.model';
 
+export interface PaginatedRecipes {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Recipe[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecipeService {
   private baseUrl = `${environment.apiUrl}/recipes`;
@@ -12,6 +19,10 @@ export class RecipeService {
 
   getAllRecipes(): Observable<Recipe[]> {
     return this.http.get<Recipe[]>(this.baseUrl + '/');
+  }
+
+  getRecipesPage(page: number): Observable<PaginatedRecipes> {
+    return this.http.get<PaginatedRecipes>(`${this.baseUrl}/?page=${page}`);
   }
 
   getById(id: number): Observable<Recipe> {
