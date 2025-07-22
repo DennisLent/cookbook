@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Recipe, Tag } from '../../recipes.model';
 import { RecipeService } from '../../recipes.service';
@@ -22,25 +22,25 @@ import { SearchBarComponent } from '../../components/search-bar/search-bar.compo
   templateUrl: './recipe-list.component.html',
   styleUrl: './recipe-list.component.scss'
 })
-export class RecipeListComponent implements OnInit {
+export class RecipeListComponent implements OnInit, AfterViewInit, OnDestroy {
   recipes: Recipe[] = [];
   allTags: Tag[] = [];
   filteredRecipes: Recipe[] = [];
   recipeTitles: string[] = [];
   suggestedRecipes: Recipe[] = [];
   placeholderImage = 'assets/fallback-image.png';
+  page = 1;
+  loading = false;
+  hasMore = true;
+  lastSearch = { term: '', tags: [] as string[] };
+  private observer?: IntersectionObserver;
+
+  @ViewChild('anchor', { static: false }) anchor?: ElementRef<HTMLElement>;
 
   constructor(private recipeService: RecipeService) {}
 
   ngOnInit(): void {
-    this.recipeService.getAllRecipes().subscribe({
-      next: (data) => {
-        this.recipes = data;
-        this.filteredRecipes = data;
-        this.recipeTitles = data.map(r => r.title);
-      },
-      error: (err) => console.error('Failed to fetch recipes:', err)
-    });
+    this.loadRecipes();
 
     this.recipeService.getAllTags().subscribe({
       next: (data) => this.allTags = data,
@@ -57,10 +57,47 @@ export class RecipeListComponent implements OnInit {
     });
   }
 
+  ngAfterViewInit(): void {
+    if (this.anchor) {
+      this.observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            this.loadRecipes();
+          }
+        });
+      });
+      this.observer.observe(this.anchor.nativeElement);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.observer?.disconnect();
+  }
+
   handleSearch({ term, tags }: { term: string; tags: string[] }) {
+    this.lastSearch = { term, tags };
     this.filteredRecipes = this.recipes.filter(r =>
       (!term || r.title.toLowerCase().includes(term.toLowerCase())) &&
       (!tags.length || tags.every(tag => r.tags.includes(tag)))
     );
+  }
+
+  private loadRecipes() {
+    if (this.loading || !this.hasMore) return;
+    this.loading = true;
+    this.recipeService.getRecipesPage(this.page).subscribe({
+      next: data => {
+        this.recipes.push(...data.results);
+        this.recipeTitles = this.recipes.map(r => r.title);
+        this.hasMore = !!data.next;
+        this.page++;
+        this.loading = false;
+        this.handleSearch(this.lastSearch);
+      },
+      error: err => {
+        console.error('Failed to fetch recipes:', err);
+        this.loading = false;
+      }
+    });
   }
 }
