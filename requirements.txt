@@ -13,3 +13,4 @@ json5
 instaloader
 ffmpeg-python
 vosk
+pandas
