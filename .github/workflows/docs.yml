@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "docs-site/**"
 
 permissions:
   contents: read
@@ -29,7 +31,7 @@ jobs:
         with:
           ruby-version: "3.3"
           bundler-cache: true
-          working-directory: docs-site
+          working-directory: "${{ github.workspace }}/docs-site"
 
       - name: Build docs site
         run: bundle exec jekyll build --source . --destination ../_site
