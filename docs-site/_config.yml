@@ -3,7 +3,7 @@ description: Technical documentation for emma-cookbook.
 theme: just-the-docs
 
 url: "https://dennislent.github.io"
-baseurl: "/cookbook"
+baseurl: "/emma-cookbook"
 
 color_scheme: light
 search_enabled: true
@@ -11,4 +11,4 @@ heading_anchors: true
 
 aux_links:
   GitHub Repository:
-    - "https://github.com/DennisLent/cookbook"
+    - "https://github.com/DennisLent/emma-cookbook"
