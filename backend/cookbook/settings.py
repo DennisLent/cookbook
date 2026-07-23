@@ -61,6 +61,8 @@ ALLOWED_HOSTS = config(
     cast=Csv(),
     default='127.0.0.1,localhost,testserver,backend,frontend',
 )
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 AUTH_USER_MODEL = 'users.User'
 
@@ -317,6 +319,7 @@ RECIPE_IMPORT_ALLOWED_HOSTS = config(
     cast=Csv(),
     default='instagram.com,www.instagram.com,m.instagram.com,tiktok.com,www.tiktok.com,m.tiktok.com,vm.tiktok.com,youtube.com,www.youtube.com,m.youtube.com,youtu.be',
 )
+RECIPE_IMPORT_COOKIE_FILE = config('RECIPE_IMPORT_COOKIE_FILE', default='')
 VOSK_MODEL_UPLOAD_MAX_ARCHIVE_BYTES = config('VOSK_MODEL_UPLOAD_MAX_ARCHIVE_BYTES', cast=int, default=1073741824)
 VOSK_MODEL_UPLOAD_MAX_EXTRACTED_BYTES = config('VOSK_MODEL_UPLOAD_MAX_EXTRACTED_BYTES', cast=int, default=2147483648)
 VOSK_MODEL_UPLOAD_MAX_FILE_COUNT = config('VOSK_MODEL_UPLOAD_MAX_FILE_COUNT', cast=int, default=5000)

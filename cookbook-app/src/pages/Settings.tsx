@@ -477,7 +477,7 @@ export default function Settings() {
             </div>
 
             <div className="space-y-2">
-              <Label>Replace Vosk Model</Label>
+              <Label className="block">Replace Vosk Model</Label>
               <input
                 ref={voskFileInputRef}
                 type="file"
@@ -485,14 +485,16 @@ export default function Settings() {
                 onChange={handleUploadVoskModel}
                 className="hidden"
               />
-              <Button
-                variant="outline"
-                onClick={() => voskFileInputRef.current?.click()}
-                disabled={isUploadingVoskModel}
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Vosk ZIP
-              </Button>
+              <div>
+                <Button
+                  variant="outline"
+                  onClick={() => voskFileInputRef.current?.click()}
+                  disabled={isUploadingVoskModel}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Vosk ZIP
+                </Button>
+              </div>
               <p className="text-sm text-muted-foreground">
                 Upload a zip archive for a replacement Vosk model. The current model directory on the server will be overwritten.
               </p>

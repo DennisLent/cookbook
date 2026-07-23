@@ -74,6 +74,9 @@ The repo expects an env file such as `.env.production` for Docker-based deployme
 - `OLLAMA_HOST`
 - `OLLAMA_DEFAULT_MODEL`
 - `VOSK_MODEL_PATH`
+- `RECIPE_IMPORT_COOKIE_FILE`
+- `PUBLIC_HOST`
+- `FRONTEND_HTTP_BIND`
 
 If `SEED_INTERNAL_DATA=1`, container startup runs `seed_internal_data` after migrations. That command creates or updates the configured superuser and seeds the internal starter recipe dataset for that account. If recipe data already exists, it skips reseeding unless you run the command manually with `--force` or `--reset`.
 
@@ -89,6 +92,22 @@ If your deployment uses locally built images instead of published ones, rebuild 
 ```sh
 ENV_FILE=.env.production docker compose up --build -d
 ```
+
+If Instagram or YouTube downloads need an authenticated session on the server, export a Netscape-format cookies file and place it at the path named by `RECIPE_IMPORT_COOKIE_FILE`. In the default Docker setup that is `docker-data/import-cookies/cookies.txt`, mounted read-only into the backend and Celery worker containers.
+
+If you want local HTTPS for a hostname such as `cookbook.home.arpa`, this repo includes an optional Caddy reverse-proxy layer with an internal CA:
+
+```sh
+FRONTEND_HTTP_BIND=127.0.0.1:8080 ENV_FILE=.env.production docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+```
+
+That keeps the frontend container on loopback HTTP while Caddy serves ports `80` and `443` for `PUBLIC_HOST`. After first start, trust the generated root certificate on each client device from:
+
+```text
+docker-data/caddy/data/caddy/pki/authorities/local/root.crt
+```
+
+Once that CA is trusted, `https://cookbook.home.arpa` should work cleanly and browsers are much more likely to resolve bare `cookbook.home.arpa` the way you expect.
 
 To update a deployment that uses published release images, run:
 

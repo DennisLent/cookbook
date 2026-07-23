@@ -1,0 +1,14 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    env_file:
+      - ${ENV_FILE:?Set ENV_FILE to an env file such as .env.production or dev_env}
+    depends_on:
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./docker-data/caddy/data:/data
+      - ./docker-data/caddy/config:/config

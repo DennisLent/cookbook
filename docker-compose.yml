@@ -31,6 +31,7 @@ services:
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
+      - ./docker-data/import-cookies:/app/import-cookies:ro
       - ./docker-data/bootstrap:/bootstrap
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -56,6 +57,7 @@ services:
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
+      - ./docker-data/import-cookies:/app/import-cookies:ro
       - ./docker-data/bootstrap:/bootstrap
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -79,6 +81,7 @@ services:
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
+      - ./docker-data/import-cookies:/app/import-cookies:ro
       - ./docker-data/bootstrap:/bootstrap
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -102,7 +105,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "${FRONTEND_HTTP_BIND:-80}:80"
 
 volumes:
   postgres_data:

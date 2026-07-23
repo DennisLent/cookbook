@@ -1,6 +1,7 @@
 """Shared utilities for validating, downloading, and transcribing public videos."""
 
 import json
+import logging
 import os
 import re
 import wave
@@ -13,6 +14,8 @@ from django.conf import settings
 from vosk import KaldiRecognizer, Model
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
+
+logger = logging.getLogger(__name__)
 
 
 class PublicVideoDownloadError(Exception):
@@ -49,9 +52,34 @@ def validate_public_video_url(video_url: str) -> str:
     return infer_supported_platform(video_url)
 
 
+def _summarize_download_error(message: str) -> str:
+    lines = [re.sub(r"\s+", " ", line).strip() for line in message.splitlines()]
+    lines = [re.sub(r"^(?:error|warning):\s*", "", line, flags=re.IGNORECASE) for line in lines if line]
+    if not lines:
+        return ""
+
+    summary = lines[-1]
+    if len(summary) > 240:
+        summary = f"{summary[:237].rstrip()}..."
+    return summary
+
+
+def _get_cookie_file() -> str | None:
+    cookie_file = str(getattr(settings, "RECIPE_IMPORT_COOKIE_FILE", "") or "").strip()
+    if not cookie_file:
+        return None
+
+    if Path(cookie_file).is_file():
+        return cookie_file
+
+    logger.warning("Configured recipe import cookie file was not found: %s", cookie_file)
+    return None
+
+
 def download_public_video(video_url: str, target_dir: str) -> tuple[str, int | None]:
     os.makedirs(target_dir, exist_ok=True)
     outtmpl = str(Path(target_dir) / "%(extractor)s-%(id)s.%(ext)s")
+    cookie_file = _get_cookie_file()
 
     options = {
         "outtmpl": outtmpl,
@@ -66,6 +94,8 @@ def download_public_video(video_url: str, target_dir: str) -> tuple[str, int | N
         "overwrites": True,
         "restrictfilenames": True,
     }
+    if cookie_file:
+        options["cookiefile"] = cookie_file
 
     try:
         with YoutubeDL(options) as ydl:
@@ -81,22 +111,28 @@ def download_public_video(video_url: str, target_dir: str) -> tuple[str, int | N
     except DownloadError as exc:
         message = str(exc)
         normalized = message.lower()
+        detail = _summarize_download_error(message)
+        if detail:
+            logger.warning("yt-dlp failed for %s: %s", video_url, detail)
         if "private" in normalized or "login" in normalized or "sign in" in normalized or "authentication" in normalized:
             raise PublicVideoDownloadError(
                 "authentication_required",
-                "This video is private or requires authentication, which version 1 does not support.",
+                f"This video is private or requires authentication.{f' yt-dlp reported: {detail}' if detail else ''}",
             ) from exc
         if "geo" in normalized or "region" in normalized or "country" in normalized or "not available" in normalized:
             raise PublicVideoDownloadError(
                 "region_restricted",
-                "This video is not available from the server's region.",
+                f"This video is not available from the server's region.{f' yt-dlp reported: {detail}' if detail else ''}",
             ) from exc
         if "file is larger than max-filesize" in normalized or "larger than max" in normalized:
             raise PublicVideoDownloadError(
                 "file_too_large",
-                "The source video exceeds the configured file size limit.",
+                f"The source video exceeds the configured file size limit.{f' yt-dlp reported: {detail}' if detail else ''}",
             ) from exc
-        raise PublicVideoDownloadError("download_failed", "The video could not be downloaded from the provided URL.") from exc
+        raise PublicVideoDownloadError(
+            "download_failed",
+            f"The video could not be downloaded from the provided URL.{f' yt-dlp reported: {detail}' if detail else ''}",
+        ) from exc
 
 
 def extract_audio_from_video(video_path: str) -> str:
