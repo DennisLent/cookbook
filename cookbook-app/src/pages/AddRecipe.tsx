@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, X, Upload, Link, ExternalLink, Salad, Droplets } from "lucide-react";
+import { ArrowLeft, Eye, History, Loader2, Plus, RotateCcw, X, Upload, Link, ExternalLink, Salad, Droplets } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +41,12 @@ type RecipeImportJob = {
   errorCode?: string;
   errorMessage?: string;
   result?: RecipeImportJobResult;
+};
+
+type RecipeImportRequest = {
+  url: string;
+  videoOnly: boolean;
+  saveVideo: boolean;
 };
 
 const IMPORT_PROGRESS_STEPS = [
@@ -198,8 +204,11 @@ export default function AddRecipe() {
   const [suggestedSauceIds, setSuggestedSauceIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("manual");
   const [importJob, setImportJob] = useState<RecipeImportJob | null>(null);
+  const [recentImportJobs, setRecentImportJobs] = useState<RecipeImportJob[]>([]);
+  const [isLoadingImportHistory, setIsLoadingImportHistory] = useState(false);
   const [isStartingImport, setIsStartingImport] = useState(false);
   const [isSavingVideoOnly, setIsSavingVideoOnly] = useState(false);
+  const [retryingImportJobId, setRetryingImportJobId] = useState<number | null>(null);
   const [saveVideo, setSaveVideo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -310,13 +319,41 @@ export default function AddRecipe() {
     setSteps(splitImportedInstructions(result.instructions));
   };
 
-  const startImportFromLink = async (videoOnly = false) => {
-    if (!sourceUrl.trim()) {
+  const upsertRecentImportJob = (job: RecipeImportJob) => {
+    setRecentImportJobs((current) => {
+      const next = [job, ...current.filter((entry) => entry.id !== job.id)];
+      return next.slice(0, 10);
+    });
+  };
+
+  const loadImportHistory = async () => {
+    setIsLoadingImportHistory(true);
+    try {
+      const jobs = await apiRequest<RecipeImportJob[]>("/recipe-import-jobs/");
+      setRecentImportJobs(jobs);
+    } catch {
+      setRecentImportJobs([]);
+    } finally {
+      setIsLoadingImportHistory(false);
+    }
+  };
+
+  const startImportFromRequest = async (
+    request: RecipeImportRequest,
+    options?: {
+      startedTitle?: string;
+      startedDescription?: string;
+      failureTitle?: string;
+      done?: () => void;
+    },
+  ) => {
+    const normalizedUrl = request.url.trim();
+    if (!normalizedUrl) {
       toast({ title: "Paste a YouTube, Instagram, or TikTok URL first", variant: "destructive" });
       return;
     }
 
-    if (videoOnly) {
+    if (request.videoOnly) {
       setIsSavingVideoOnly(true);
     } else {
       setIsStartingImport(true);
@@ -324,18 +361,21 @@ export default function AddRecipe() {
     try {
       const job = await apiRequest<RecipeImportJob>("/recipe-import-jobs/", {
         method: "POST",
-        body: JSON.stringify({ url: sourceUrl.trim(), videoOnly, saveVideo: videoOnly || saveVideo }),
+        body: JSON.stringify(request),
       });
+      setSourceUrl(normalizedUrl);
       setImportJob(job);
+      upsertRecentImportJob(job);
       toast({
-        title: videoOnly ? "Video download started" : "Import started",
-        description: videoOnly
+        title: options?.startedTitle || (request.videoOnly ? "Video download started" : "Import started"),
+        description: options?.startedDescription || (request.videoOnly
           ? "We are downloading the source video so you can save it with the recipe."
-          : "We are downloading and transcribing the video now.",
+          : "We are downloading and transcribing the video now."),
       });
+      options?.done?.();
     } catch (error) {
       toast({
-        title: "Failed to start import",
+        title: options?.failureTitle || "Failed to start import",
         description: getApiErrorMessage(error, "The video import job could not be created."),
         variant: "destructive",
       });
@@ -344,6 +384,58 @@ export default function AddRecipe() {
       setIsSavingVideoOnly(false);
     }
   };
+
+  const startImportFromLink = async (videoOnly = false) => {
+    await startImportFromRequest({
+      url: sourceUrl,
+      videoOnly,
+      saveVideo: videoOnly || saveVideo,
+    });
+  };
+
+  const handleRetryImportJob = async (job: RecipeImportJob) => {
+    setRetryingImportJobId(job.id);
+    try {
+      await startImportFromRequest(
+        {
+          url: job.sourceUrl,
+          videoOnly: Boolean(job.videoOnly),
+          saveVideo: Boolean(job.saveVideo),
+        },
+        {
+          startedTitle: job.videoOnly ? "Video download retried" : "Import retried",
+          startedDescription: job.videoOnly
+            ? "We are retrying the saved-video download with the original settings."
+            : "We are retrying the import with the original settings.",
+          failureTitle: "Failed to retry import",
+        },
+      );
+    } finally {
+      setRetryingImportJobId(null);
+    }
+  };
+
+  const handleLoadImportJob = (job: RecipeImportJob) => {
+    setActiveTab("link");
+    setImportJob(job);
+    setSourceUrl(job.sourceUrl);
+    setSaveVideo(Boolean(job.saveVideo));
+
+    if (job.status === "done") {
+      applyImportedRecipe(job);
+      toast({
+        title: job.videoOnly ? "Saved video restored" : "Imported recipe restored",
+        description: job.videoOnly
+          ? "The saved video has been loaded back into this draft."
+          : "The imported fields have been loaded back into this draft.",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== "link") return;
+    void loadImportHistory();
+  }, [activeTab]);
 
   useEffect(() => {
     if (!importJob || importJob.status === "done" || importJob.status === "failed") {
@@ -354,10 +446,12 @@ export default function AddRecipe() {
       try {
         const nextJob = await apiRequest<RecipeImportJob>(`/recipe-import-jobs/${importJob.id}/`);
         setImportJob(nextJob);
+        upsertRecentImportJob(nextJob);
 
         if (nextJob.status === "done") {
           applyImportedRecipe(nextJob);
           window.clearInterval(interval);
+          void loadImportHistory();
           toast({
             title: nextJob.videoOnly ? "Video saved to the draft" : "Recipe imported",
             description: nextJob.videoOnly
@@ -366,6 +460,7 @@ export default function AddRecipe() {
           });
         } else if (nextJob.status === "failed") {
           window.clearInterval(interval);
+          void loadImportHistory();
           toast({
             title: "Import failed",
             description: nextJob.errorMessage || "The importer could not process this public video URL.",
@@ -442,6 +537,7 @@ export default function AddRecipe() {
   const canImportFromLink = Boolean(
     videoEmbed?.type === "instagram" || videoEmbed?.type === "tiktok" || videoEmbed?.type === "youtube"
   );
+  const recentImportHistory = recentImportJobs.slice(0, 5);
 
   const renderRecipeForm = (idPrefix = "") => (
     <div className="space-y-6">
@@ -839,8 +935,96 @@ export default function AddRecipe() {
                         );
                       })}
                     </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {importJob.status === "done" && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleLoadImportJob(importJob)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Load Into Form
+                        </Button>
+                      )}
+                      {importJob.status === "failed" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void handleRetryImportJob(importJob)}
+                          disabled={retryingImportJobId === importJob.id}
+                        >
+                          {retryingImportJobId === importJob.id && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          {retryingImportJobId !== importJob.id && <RotateCcw className="w-4 h-4 mr-2" />}
+                          Retry
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
+
+                <div className="rounded-lg border bg-card p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <History className="w-4 h-4" />
+                        Recent imports
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Reopen a recent import or retry a failed one without pasting the link again.
+                      </p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => void loadImportHistory()} disabled={isLoadingImportHistory}>
+                      {isLoadingImportHistory && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {recentImportHistory.length > 0 ? (
+                    <div className="space-y-3">
+                      {recentImportHistory.map((job) => (
+                        <div key={job.id} className="rounded-md border bg-background/80 p-3 space-y-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className="capitalize">{job.platform}</Badge>
+                                <Badge variant={job.status === "failed" ? "destructive" : "secondary"}>
+                                  {job.status === "failed" ? "Failed" : formatImportStageLabel(job)}
+                                </Badge>
+                                {job.videoOnly && <Badge variant="outline">Video only</Badge>}
+                              </div>
+                              <p className="text-sm break-all">{job.sourceUrl}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {getImportStageDescription(job)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={() => handleLoadImportJob(job)}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              {job.status === "done" ? "Load Into Form" : "View Status"}
+                            </Button>
+                            {job.status === "failed" && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void handleRetryImportJob(job)}
+                                disabled={retryingImportJobId === job.id}
+                              >
+                                {retryingImportJobId === job.id && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                {retryingImportJobId !== job.id && <RotateCcw className="w-4 h-4 mr-2" />}
+                                Retry
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {isLoadingImportHistory ? "Loading recent imports..." : "No recent import jobs yet."}
+                    </p>
+                  )}
+                </div>
 
                 {videoUrl && (
                   <div className="space-y-2">
