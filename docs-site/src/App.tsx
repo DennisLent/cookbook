@@ -312,6 +312,22 @@ const App = () => {
                 </label>
 
                 <label>
+                  <span>APP_MODE</span>
+                  <select
+                    value={values.appMode}
+                    onChange={(event) =>
+                      updateValue(
+                        "appMode",
+                        event.target.value as WizardValues["appMode"],
+                      )
+                    }
+                  >
+                    <option value="multi_user">multi_user</option>
+                    <option value="single_user">single_user</option>
+                  </select>
+                </label>
+
+                {values.appMode === "multi_user" && <label>
                   <span>AUTH_PROVIDER</span>
                   <select
                     value={values.authProvider}
@@ -325,9 +341,9 @@ const App = () => {
                     <option value="jwt">jwt</option>
                     <option value="keycloak">keycloak</option>
                   </select>
-                </label>
+                </label>}
 
-                {values.authProvider === "keycloak" ? (
+                {values.appMode === "multi_user" && values.authProvider === "keycloak" ? (
                   <>
                     <label>
                       <span>KEYCLOAK_URL</span>

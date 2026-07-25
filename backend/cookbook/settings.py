@@ -66,6 +66,13 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 AUTH_USER_MODEL = 'users.User'
 
+# APP_MODE controls whether callers authenticate as individual accounts or as
+# one shared instance owner. It is intentionally separate from AUTH_PROVIDER,
+# which only selects the credential mechanism used in multi-user mode.
+APP_MODE = str(config('APP_MODE', default='multi_user')).strip().lower()
+if APP_MODE not in {'multi_user', 'single_user'}:
+    raise ValueError("APP_MODE must be either 'multi_user' or 'single_user'.")
+
 # Media for images and avatars
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -114,6 +121,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'cookbook.authentication.SingleUserAuthentication',
         'cookbook.authentication.OIDCAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',

@@ -7,6 +7,17 @@ from django.conf import settings
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework import exceptions
 
+
+class SingleUserAuthentication(BaseAuthentication):
+    """Authenticate every API request as the shared owner in single-user mode."""
+
+    def authenticate(self, request):
+        if getattr(settings, "APP_MODE", "multi_user") != "single_user":
+            return None
+        from users.instance_mode import get_single_user_owner
+
+        return get_single_user_owner(), None
+
 import jwt
 from jwt import PyJWKClient
 from jwt import InvalidTokenError, ExpiredSignatureError

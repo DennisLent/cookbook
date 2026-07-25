@@ -14,7 +14,8 @@ class UserSerializer(serializers.ModelSerializer):
     theme = serializers.JSONField(required=False)
     layout = serializers.JSONField(required=False)
     widget_whitelist = serializers.JSONField(required=False)
-    favorite_recipe_ids = serializers.JSONField(required=False)
+    favorite_recipe_ids = serializers.SerializerMethodField()
+    preferencesVersion = serializers.IntegerField(source="preferences_version", read_only=True)
 
     class Meta:
         model = User
@@ -32,6 +33,7 @@ class UserSerializer(serializers.ModelSerializer):
             'bio',
             'avatar',
             'preferences',
+            'preferencesVersion',
             'favorite_recipe_ids',
             'role',
             'theme',
@@ -45,6 +47,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_prefs(self, obj):
         return obj.preferences.get("prefs", {})
+
+    def get_favorite_recipe_ids(self, obj):
+        return list(obj.favorites.order_by("recipe_id").values_list("recipe_id", flat=True))
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):

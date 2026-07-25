@@ -211,6 +211,7 @@ export default function AddRecipe() {
   const [retryingImportJobId, setRetryingImportJobId] = useState<number | null>(null);
   const [saveVideo, setSaveVideo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importIdempotencyRef = useRef<{ signature: string; key: string } | null>(null);
 
   useEffect(() => {
     ensureAllRecipesLoaded().catch(() => undefined);
@@ -359,8 +360,16 @@ export default function AddRecipe() {
       setIsStartingImport(true);
     }
     try {
+      const signature = JSON.stringify(request);
+      if (importIdempotencyRef.current?.signature !== signature) {
+        importIdempotencyRef.current = {
+          signature,
+          key: crypto.randomUUID(),
+        };
+      }
       const job = await apiRequest<RecipeImportJob>("/recipe-import-jobs/", {
         method: "POST",
+        headers: { "Idempotency-Key": importIdempotencyRef.current.key },
         body: JSON.stringify(request),
       });
       setSourceUrl(normalizedUrl);

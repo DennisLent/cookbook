@@ -145,6 +145,7 @@ describe("AddRecipe import history", () => {
     await waitFor(() => {
       expect(apiRequestMock).toHaveBeenCalledWith("/recipe-import-jobs/", {
         method: "POST",
+        headers: { "Idempotency-Key": expect.any(String) },
         body: JSON.stringify({
           url: "https://www.youtube.com/watch?v=abc123xyz98",
           videoOnly: true,

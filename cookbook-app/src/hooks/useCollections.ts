@@ -79,10 +79,8 @@ export function CollectionsProvider({ children }: { children: ReactNode }) {
   const addToCollection = (collectionId: string, recipeId: string) => {
     const current = collections.find((collection) => collection.id === collectionId);
     if (!current || current.recipeIds.includes(recipeId)) return;
-    const recipeIds = [...current.recipeIds, recipeId];
-    apiRequest<BackendCollection>(`/collections/${collectionId}/`, {
-      method: "PATCH",
-      body: JSON.stringify({ name: current.name, recipeIds }),
+    apiRequest<BackendCollection>(`/collections/${collectionId}/recipes/${recipeId}/`, {
+      method: "POST",
     })
       .then((updated) => {
         setCollections((prev) =>
@@ -97,10 +95,8 @@ export function CollectionsProvider({ children }: { children: ReactNode }) {
   const removeFromCollection = (collectionId: string, recipeId: string) => {
     const current = collections.find((collection) => collection.id === collectionId);
     if (!current) return;
-    const recipeIds = current.recipeIds.filter((id) => id !== recipeId);
-    apiRequest<BackendCollection>(`/collections/${collectionId}/`, {
-      method: "PATCH",
-      body: JSON.stringify({ name: current.name, recipeIds }),
+    apiRequest<BackendCollection>(`/collections/${collectionId}/recipes/${recipeId}/`, {
+      method: "DELETE",
     })
       .then((updated) => {
         setCollections((prev) =>

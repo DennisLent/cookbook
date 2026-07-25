@@ -236,3 +236,5 @@ yarn-error.log*
 
 venv/
 vosk*
+
+notes/

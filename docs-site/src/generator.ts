@@ -1,4 +1,5 @@
 type AuthProvider = "jwt" | "keycloak";
+type AppMode = "single_user" | "multi_user";
 
 export type WizardValues = {
   secretKey: string;
@@ -13,6 +14,7 @@ export type WizardValues = {
   djangoSuperuserUsername: string;
   djangoSuperuserPassword: string;
   authProvider: AuthProvider;
+  appMode: AppMode;
   keycloakUrl: string;
   keycloakRealm: string;
   keycloakClientId: string;
@@ -78,6 +80,7 @@ POSTGRES_PASSWORD=${values.postgresPassword}
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 
+APP_MODE=${values.appMode}
 AUTH_PROVIDER=${values.authProvider}
 KEYCLOAK_REALM=${values.keycloakRealm}
 KEYCLOAK_URL=${values.keycloakUrl}
@@ -320,6 +323,7 @@ export const createDefaultValues = (): WizardValues => {
     djangoSuperuserUsername: "admin",
     djangoSuperuserPassword: "",
     authProvider: "jwt",
+    appMode: "multi_user",
     keycloakUrl: "http://localhost:8080",
     keycloakRealm: "cookbook",
     keycloakClientId: "cookbook-web",

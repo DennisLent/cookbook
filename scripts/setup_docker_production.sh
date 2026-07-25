@@ -140,6 +140,7 @@ POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 
+APP_MODE=${APP_MODE}
 AUTH_PROVIDER=${AUTH_PROVIDER}
 KEYCLOAK_REALM=${KEYCLOAK_REALM}
 KEYCLOAK_URL=${KEYCLOAK_URL}
@@ -234,16 +235,26 @@ POSTGRES_DB="$(prompt_value "PostgreSQL database name" "cookbook")"
 POSTGRES_USER="$(prompt_value "PostgreSQL user" "cookbook")"
 POSTGRES_PASSWORD="$(prompt_secret "PostgreSQL password")"
 
-DJANGO_SUPERUSER_USERNAME="$(prompt_value "Django admin username" "admin")"
-DJANGO_SUPERUSER_PASSWORD="$(prompt_secret "Django admin password")"
+APP_MODE="$(prompt_value "Application mode (multi_user/single_user)" "multi_user")"
+if [[ "${APP_MODE}" != "multi_user" && "${APP_MODE}" != "single_user" ]]; then
+  printf 'APP_MODE must be multi_user or single_user.\n' >&2
+  exit 1
+fi
 
-AUTH_PROVIDER="$(prompt_value "Auth provider (jwt/keycloak)" "jwt")"
+DJANGO_SUPERUSER_USERNAME=""
+DJANGO_SUPERUSER_PASSWORD=""
+AUTH_PROVIDER="jwt"
+if [[ "${APP_MODE}" == "multi_user" ]]; then
+  DJANGO_SUPERUSER_USERNAME="$(prompt_value "Django admin username" "admin")"
+  DJANGO_SUPERUSER_PASSWORD="$(prompt_secret "Django admin password")"
+  AUTH_PROVIDER="$(prompt_value "Auth provider (jwt/keycloak)" "jwt")"
+fi
 KEYCLOAK_REALM="cookbook"
 KEYCLOAK_URL="http://localhost:8080"
 KEYCLOAK_CLIENT_ID="cookbook-web"
 KEYCLOAK_AUDIENCE="cookbook-web"
 KEYCLOAK_ADMIN_ROLE="cookbook-admin"
-if [[ "${AUTH_PROVIDER}" == "keycloak" ]]; then
+if [[ "${APP_MODE}" == "multi_user" && "${AUTH_PROVIDER}" == "keycloak" ]]; then
   KEYCLOAK_URL="$(prompt_value "Keycloak base URL" "${KEYCLOAK_URL}")"
   KEYCLOAK_REALM="$(prompt_value "Keycloak realm" "${KEYCLOAK_REALM}")"
   KEYCLOAK_CLIENT_ID="$(prompt_value "Keycloak client ID" "${KEYCLOAK_CLIENT_ID}")"

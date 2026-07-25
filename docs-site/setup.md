@@ -95,6 +95,21 @@ ENV_FILE=.env.production docker compose up --build -d
 
 If Instagram or YouTube downloads need an authenticated session on the server, export a Netscape-format cookies file and place it at the path named by `RECIPE_IMPORT_COOKIE_FILE`. In the default Docker setup that is `docker-data/import-cookies/cookies.txt`, mounted read-only into the backend and Celery worker containers.
 
+## Single-user and multi-user mode
+
+Set `APP_MODE=multi_user` (the default) to require individual accounts for writes, or use `APP_MODE=single_user` on a **new database** to run with one shared owner and no login screen. “Single-user” means one shared identity, not one simultaneous visitor: several people, browsers, and devices can use it together. Favorites, collections, notes, ratings, and preferences are shared. Recipe edits use revision checks so a stale editor must refresh instead of overwriting somebody else’s changes. Single-user mode is not an access-control boundary: every person or device that can reach the application can change its data and instance settings. Put it behind a trusted LAN, VPN, or authenticated reverse proxy.
+
+The lifecycle is one-way. A single-user instance can be promoted to multi-user mode, but a database that has ever run in multi-user mode cannot be changed to single-user mode. This is enforced in database metadata, including after restores.
+
+To promote, stop frontend/backend/worker writes, take a database backup, create the destination account, then run:
+
+```bash
+python manage.py promote_to_multi_user USERNAME --dry-run
+python manage.py promote_to_multi_user USERNAME --confirm
+```
+
+After the command succeeds, set `APP_MODE=multi_user` and restart the backend, worker, beat, and frontend stack together. There is no reverse command.
+
 If you want local HTTPS for a hostname such as `cookbook.home.arpa`, this repo includes an optional Caddy reverse-proxy layer with an internal CA:
 
 ```sh

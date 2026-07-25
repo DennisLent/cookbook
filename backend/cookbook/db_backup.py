@@ -7,6 +7,7 @@ from django.apps import apps
 from django.core import serializers
 from django.core.management.color import no_style
 from django.db import connection, transaction
+from django.conf import settings
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class BackupModelSpec:
 
 
 BACKUP_MODELS = [
+    BackupModelSpec("users.InstanceConfiguration"),
     BackupModelSpec("users.User"),
     BackupModelSpec("recipes.Tag"),
     BackupModelSpec("recipes.Ingredient"),
@@ -27,6 +29,7 @@ BACKUP_MODELS = [
     BackupModelSpec("recipes.RecipeIngredient"),
     BackupModelSpec("recipes.RecipeStep"),
     BackupModelSpec("recipes.Rating"),
+    BackupModelSpec("recipes.Favorite"),
     BackupModelSpec("recipes.Comment"),
     BackupModelSpec("recipes.Collection"),
     BackupModelSpec("recipes.CollectionRecipe"),
@@ -54,6 +57,29 @@ def import_backup_data(raw_bytes: bytes) -> dict[str, int]:
         model_label = str(entry.get("model", "")).lower()
         if model_label not in BACKUP_MODEL_LABELS:
             raise ValueError(f"Unsupported model in backup payload: {entry.get('model')}")
+
+    if settings.APP_MODE == "single_user":
+        mode_entries = [
+            entry for entry in fixture
+            if str(entry.get("model", "")).lower() == "users.instanceconfiguration"
+        ]
+        contains_multi_user_history = any(
+            entry.get("fields", {}).get("mode") == "multi_user"
+            or entry.get("fields", {}).get("ever_multi_user")
+            for entry in mode_entries
+        )
+        user_entries = [
+            entry for entry in fixture
+            if str(entry.get("model", "")).lower() == "users.user"
+        ]
+        contains_normal_accounts = any(
+            entry.get("fields", {}).get("username") != "__single_user__"
+            for entry in user_entries
+        )
+        if contains_multi_user_history or contains_normal_accounts:
+            raise ValueError(
+                "A multi-user backup cannot be restored into a single-user instance."
+            )
 
     deserialized = list(serializers.deserialize("json", json.dumps(fixture)))
 

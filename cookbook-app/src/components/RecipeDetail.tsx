@@ -78,7 +78,7 @@ export const RecipeDetail = ({ recipe, onClose, onStartCookMode }: RecipeDetailP
   const navigate = useNavigate();
   const { recipes, deleteRecipe } = useRecipes();
   const { getAverageRating, getUserRating, rateRecipe, isFavorite, toggleFavorite } = useSocial();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, mode } = useAuth();
   const { collections, addToCollection, removeFromCollection, isInCollection } = useCollections();
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -349,19 +349,21 @@ export const RecipeDetail = ({ recipe, onClose, onStartCookMode }: RecipeDetailP
              {/* Rating Section */}
              <div className="space-y-2">
                <div className="flex items-center gap-4">
-                 <div className="flex items-center gap-2">
+                 {mode !== "single_user" && <div className="flex items-center gap-2">
                    <StarRating rating={average} size="lg" showCount count={count} />
                    {count > 0 && (
                      <span className="text-sm text-muted-foreground">
                        ({average.toFixed(1)})
                      </span>
                    )}
-                 </div>
+                 </div>}
                </div>
                
                {isAuthenticated && (
                  <div className="flex items-center gap-2">
-                   <span className="text-sm text-muted-foreground">Your rating:</span>
+                   <span className="text-sm text-muted-foreground">
+                     {mode === "single_user" ? "Rating:" : "Your rating:"}
+                   </span>
                    <StarRating
                      rating={userRating || 0}
                      size="lg"

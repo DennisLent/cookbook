@@ -8,10 +8,12 @@ import zipfile
 
 import requests
 from django.http import HttpResponse
+from django.db import transaction
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from cookbook.api_errors import error_response
 from django.conf import settings as django_settings
@@ -21,12 +23,70 @@ from recipes.models import ExtractionSettings, get_effective_ollama_model, get_e
 from .models import User
 from .serializers import ChangePasswordSerializer, UserRegisterSerializer, UserSerializer
 from .update_checks import check_for_updates, dismiss_update, get_update_status
+from .instance_mode import get_instance_configuration
 
 
-class IsSuperuser(permissions.BasePermission):
+def _single_user_mode():
+    return django_settings.APP_MODE == "single_user"
+
+
+class IsInstanceAdministrator(permissions.BasePermission):
+    """Allow superusers, or the shared owner of a trusted single-user instance."""
+
     def has_permission(self, request, view):
         user = getattr(request, "user", None)
-        return bool(user and user.is_authenticated and user.is_superuser)
+        return bool(
+            user
+            and user.is_authenticated
+            and (_single_user_mode() or user.is_superuser)
+        )
+
+
+# Compatibility name for existing views while centralizing the policy.
+IsSuperuser = IsInstanceAdministrator
+
+
+class ModeAwareTokenObtainPairView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        if _single_user_mode():
+            return error_response(
+                code="auth_not_enabled",
+                message="Account authentication is disabled in single-user mode.",
+                http_status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().post(request, *args, **kwargs)
+
+
+class ModeAwareTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        if _single_user_mode():
+            return error_response(
+                code="auth_not_enabled",
+                message="Account authentication is disabled in single-user mode.",
+                http_status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().post(request, *args, **kwargs)
+
+
+class AppConfigView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, _request):
+        configuration = get_instance_configuration()
+        single_user = configuration.mode == "single_user"
+        response = Response(
+            {
+                "mode": configuration.mode,
+                "authenticationRequired": not single_user,
+                "registrationEnabled": not single_user and django_settings.AUTH_PROVIDER == "jwt",
+                "authProvider": "none" if single_user else django_settings.AUTH_PROVIDER,
+                "profileEnabled": True,
+                "passwordManagementEnabled": not single_user and django_settings.AUTH_PROVIDER == "jwt",
+                "administrationEnabled": single_user,
+            }
+        )
+        response["Cache-Control"] = "no-store"
+        return response
 
 class UserRegisterView(generics.CreateAPIView):
     """
@@ -37,6 +97,15 @@ class UserRegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
     permission_classes = [permissions.AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        if _single_user_mode():
+            return error_response(
+                code="registration_disabled",
+                message="Registration is disabled in single-user mode.",
+                http_status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
@@ -51,11 +120,56 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_object(self):
         return self.request.user
 
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(pk=request.user.pk)
+            updates_preferences = "preferences" in request.data
+            if updates_preferences:
+                expected_version = request.data.get("preferencesVersion")
+                if expected_version is None:
+                    return error_response(
+                        code="preferences_version_required",
+                        message="The current preferences version is required before saving.",
+                        http_status=status.HTTP_428_PRECONDITION_REQUIRED,
+                        details={"currentVersion": user.preferences_version},
+                    )
+                if str(expected_version) != str(user.preferences_version):
+                    return error_response(
+                        code="preferences_version_conflict",
+                        message="Preferences changed on another device. Refresh before saving again.",
+                        http_status=status.HTTP_409_CONFLICT,
+                        details={"currentVersion": user.preferences_version},
+                    )
+
+            serializer = self.get_serializer(user, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            if updates_preferences:
+                serializer.save(preferences_version=user.preferences_version + 1)
+            else:
+                serializer.save()
+            return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        if _single_user_mode():
+            return error_response(
+                code="account_deletion_disabled",
+                message="The shared instance owner cannot be deleted.",
+                http_status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().destroy(request, *args, **kwargs)
+
 
 class ChangePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        if _single_user_mode():
+            return error_response(
+                code="password_management_disabled",
+                message="Password management is disabled in single-user mode.",
+                http_status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -119,7 +233,7 @@ class AppUpdateDismissView(APIView):
 
 
 class DatabaseExportView(APIView):
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsInstanceAdministrator]
 
     def get(self, _request):
         backup_bytes = export_backup_data()
@@ -129,7 +243,7 @@ class DatabaseExportView(APIView):
 
 
 class DatabaseImportView(APIView):
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsInstanceAdministrator]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):

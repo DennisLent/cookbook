@@ -54,7 +54,8 @@ function formatBytes(value?: number | null) {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, administrationEnabled } = useAuth();
+  const canAdminister = Boolean(user?.isSuperuser || administrationEnabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const voskFileInputRef = useRef<HTMLInputElement>(null);
   const [extractionSettings, setExtractionSettings] = useState<ExtractionSettings | null>(null);
@@ -70,7 +71,7 @@ export default function Settings() {
   const [isDismissingUpdate, setIsDismissingUpdate] = useState(false);
 
   useEffect(() => {
-    if (!user?.isSuperuser) {
+    if (!canAdminister) {
       return;
     }
 
@@ -81,17 +82,17 @@ export default function Settings() {
         setVoskModelPath(data.voskModelPath);
       })
       .catch(() => undefined);
-  }, [user?.isSuperuser]);
+  }, [canAdminister]);
 
   useEffect(() => {
-    if (!user?.isSuperuser) {
+    if (!canAdminister) {
       return;
     }
 
     apiRequest<AppUpdateStatus>("/app/update-status/")
       .then((data) => setAppUpdateStatus(data))
       .catch(() => undefined);
-  }, [user?.isSuperuser]);
+  }, [canAdminister]);
 
   const handleExport = async () => {
     try {
@@ -321,7 +322,7 @@ export default function Settings() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
-        {user?.isSuperuser && (
+        {canAdminister && (
           <section className="space-y-4">
             <h2 className="text-lg font-semibold">Updates</h2>
 

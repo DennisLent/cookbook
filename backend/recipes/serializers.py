@@ -1,15 +1,14 @@
 """Serializers that translate recipe-domain models to the public API shape."""
 
 from django.db.models import Avg
-from django.db import connection
 from django.utils.text import slugify
 from rest_framework import serializers
 
-from users.models import User
 from .models import (
     Collection,
     CollectionRecipe,
     Comment,
+    Favorite,
     Ingredient,
     IngredientAlias,
     Rating,
@@ -171,6 +170,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             "created_by",
             "createdAt",
             "updatedAt",
+            "version",
             "origin",
             "servings",
             "prepMin",
@@ -362,17 +362,14 @@ class RecipeSerializer(serializers.ModelSerializer):
                     step.ingredients.add(ingredient)
 
     def get_favorites_count(self, obj) -> int:
-        # SQLite does not support JSON contains lookups the same way Postgres does.
-        if connection.vendor == "sqlite":
-            return sum(1 for user in User.objects.only("favorite_recipe_ids") if obj.pk in (user.favorite_recipe_ids or []))
-        return User.objects.filter(favorite_recipe_ids__contains=[obj.pk]).count()
+        return Favorite.objects.filter(recipe=obj).count()
 
     def get_is_favorited(self, obj) -> bool:
         request = self.context.get("request")
         user = getattr(request, "user", None)
         if not user or not getattr(user, "is_authenticated", False):
             return False
-        return obj.pk in (user.favorite_recipe_ids or [])
+        return Favorite.objects.filter(recipe=obj, user=user).exists()
 
     def get_avg_rating(self, obj):
         agg = obj.ratings.aggregate(avg=Avg("stars"))
@@ -404,6 +401,13 @@ class CollectionSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["recipeIds"] = list(instance.collection_recipes.order_by("id").values_list("recipe_id", flat=True))
         return data
+
+    def validate(self, attrs):
+        if self.instance is not None and "recipes" in attrs:
+            raise serializers.ValidationError(
+                {"recipeIds": "Use the atomic collection membership endpoint to add or remove recipes."}
+            )
+        return attrs
 
     def create(self, validated_data):
         recipes = validated_data.pop("recipes", [])

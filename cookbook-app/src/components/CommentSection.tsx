@@ -17,7 +17,8 @@
  }
  
  export const CommentSection = ({ recipeId }: CommentSectionProps) => {
-   const { user, isAuthenticated } = useAuth();
+   const { user, isAuthenticated, mode } = useAuth();
+   const sharedNotes = mode === "single_user";
    const { getRecipeComments, addComment, deleteComment } = useSocial();
    const [newComment, setNewComment] = useState("");
    
@@ -53,7 +54,7 @@
        <div className="flex items-center gap-2">
          <MessageSquare className="w-5 h-5" />
          <h3 className="text-xl font-semibold">
-           Comments {comments.length > 0 && `(${comments.length})`}
+           {sharedNotes ? "Notes" : "Comments"} {comments.length > 0 && `(${comments.length})`}
          </h3>
        </div>
        
@@ -61,13 +62,13 @@
        {isAuthenticated ? (
          <form onSubmit={handleSubmit} className="space-y-3">
            <Textarea
-             placeholder="Share your thoughts about this recipe..."
+             placeholder={sharedNotes ? "Add a note about this recipe..." : "Share your thoughts about this recipe..."}
              value={newComment}
              onChange={(e) => setNewComment(e.target.value)}
              className="min-h-[80px]"
            />
            <Button type="submit" disabled={!newComment.trim()}>
-             Post Comment
+             {sharedNotes ? "Add Note" : "Post Comment"}
            </Button>
          </form>
        ) : (
@@ -80,7 +81,7 @@
        <div className="space-y-4">
          {comments.length === 0 ? (
            <p className="text-sm text-muted-foreground">
-             No comments yet. Be the first to share your thoughts!
+             {sharedNotes ? "No notes yet." : "No comments yet. Be the first to share your thoughts!"}
            </p>
          ) : (
            comments.map((comment) => (

@@ -18,7 +18,7 @@ import { getApiErrorMessage } from "@/lib/api";
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, updateProfile, changePassword, isAuthenticated } = useAuth();
+  const { user, updateProfile, changePassword, isAuthenticated, authenticationRequired, passwordManagementEnabled } = useAuth();
   const [formData, setFormData] = useState({
     name: user?.name || "",
     email: user?.email || "",
@@ -115,7 +115,7 @@ export default function Profile() {
 
         <div className="space-y-6">
           {/* Avatar Section */}
-          <Card>
+          {authenticationRequired && <Card>
             <CardHeader>
               <CardTitle>Profile Picture</CardTitle>
             </CardHeader>
@@ -140,10 +140,10 @@ export default function Profile() {
                 </Button>
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Basic Info */}
-          <Card>
+          {authenticationRequired && <Card>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
               <CardDescription>Update your personal details</CardDescription>
@@ -176,9 +176,9 @@ export default function Profile() {
                 <Button type="submit">Save Changes</Button>
               </form>
             </CardContent>
-          </Card>
+          </Card>}
 
-          <Card>
+          {passwordManagementEnabled && <Card>
             <CardHeader>
               <CardTitle>Change Password</CardTitle>
               <CardDescription>Use your current password to set a new one</CardDescription>
@@ -218,7 +218,7 @@ export default function Profile() {
                 <Button type="submit">Update Password</Button>
               </form>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Color Scheme */}
           <Card>
