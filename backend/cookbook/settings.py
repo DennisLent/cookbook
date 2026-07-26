@@ -178,10 +178,11 @@ has_postgres_config = any(
 )
 
 if database_engine == 'sqlite':
+    sqlite_database_path = str(config('SQLITE_DATABASE_PATH', default='')).strip()
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': Path(sqlite_database_path) if sqlite_database_path else BASE_DIR / 'db.sqlite3',
         }
     }
 elif database_engine in {'postgres', 'postgresql'} or has_postgres_config:

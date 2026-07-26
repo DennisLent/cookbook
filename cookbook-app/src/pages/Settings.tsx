@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Download, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Download, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
@@ -54,7 +55,12 @@ function formatBytes(value?: number | null) {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { user, administrationEnabled } = useAuth();
+  const {
+    user,
+    administrationEnabled,
+    mode,
+    authenticationRequired,
+  } = useAuth();
   const canAdminister = Boolean(user?.isSuperuser || administrationEnabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const voskFileInputRef = useRef<HTMLInputElement>(null);
@@ -322,6 +328,35 @@ export default function Settings() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
+        <section className="space-y-4" aria-labelledby="instance-heading">
+          <h2 id="instance-heading" className="text-lg font-semibold">Instance</h2>
+          <div className="rounded-lg border p-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-sm text-muted-foreground">Application mode</p>
+              <p className="font-medium">
+                {mode === "single_user" ? "Single-user (shared owner)" : "Multi-user"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Authentication</p>
+              <p className="font-medium">
+                {authenticationRequired ? "Required for personal actions" : "Not required"}
+              </p>
+            </div>
+          </div>
+
+          {mode === "single_user" && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Everyone who can reach this instance has owner access</AlertTitle>
+              <AlertDescription>
+                Single-user mode uses one shared identity. Keep this instance behind a trusted
+                LAN, VPN, or authenticated reverse proxy.
+              </AlertDescription>
+            </Alert>
+          )}
+        </section>
+
         {canAdminister && (
           <section className="space-y-4">
             <h2 className="text-lg font-semibold">Updates</h2>

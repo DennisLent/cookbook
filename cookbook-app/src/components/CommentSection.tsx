@@ -32,8 +32,11 @@
          setNewComment("");
        } catch (error) {
          toast({
-           title: "Failed to add comment",
-           description: getApiErrorMessage(error, "The comment could not be posted."),
+           title: sharedNotes ? "Failed to add note" : "Failed to add comment",
+           description: getApiErrorMessage(
+             error,
+             sharedNotes ? "The note could not be saved." : "The comment could not be posted.",
+           ),
            variant: "destructive",
          });
        }
@@ -94,8 +97,11 @@
                    await deleteComment(comment.id);
                  } catch (error) {
                    toast({
-                     title: "Failed to delete comment",
-                     description: getApiErrorMessage(error, "The comment could not be deleted."),
+                     title: sharedNotes ? "Failed to delete note" : "Failed to delete comment",
+                     description: getApiErrorMessage(
+                       error,
+                       sharedNotes ? "The note could not be deleted." : "The comment could not be deleted.",
+                     ),
                      variant: "destructive",
                    });
                  }

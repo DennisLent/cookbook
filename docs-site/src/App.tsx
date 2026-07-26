@@ -291,27 +291,6 @@ const App = () => {
                 </label>
 
                 <label>
-                  <span>DJANGO_SUPERUSER_USERNAME</span>
-                  <input
-                    value={values.djangoSuperuserUsername}
-                    onChange={(event) =>
-                      updateValue("djangoSuperuserUsername", event.target.value)
-                    }
-                  />
-                </label>
-
-                <label>
-                  <span>DJANGO_SUPERUSER_PASSWORD</span>
-                  <input
-                    type="password"
-                    value={values.djangoSuperuserPassword}
-                    onChange={(event) =>
-                      updateValue("djangoSuperuserPassword", event.target.value)
-                    }
-                  />
-                </label>
-
-                <label>
                   <span>APP_MODE</span>
                   <select
                     value={values.appMode}
@@ -327,21 +306,46 @@ const App = () => {
                   </select>
                 </label>
 
-                {values.appMode === "multi_user" && <label>
-                  <span>AUTH_PROVIDER</span>
-                  <select
-                    value={values.authProvider}
-                    onChange={(event) =>
-                      updateValue(
-                        "authProvider",
-                        event.target.value as WizardValues["authProvider"],
-                      )
-                    }
-                  >
-                    <option value="jwt">jwt</option>
-                    <option value="keycloak">keycloak</option>
-                  </select>
-                </label>}
+                {values.appMode === "multi_user" && (
+                  <>
+                    <label>
+                      <span>DJANGO_SUPERUSER_USERNAME</span>
+                      <input
+                        value={values.djangoSuperuserUsername}
+                        onChange={(event) =>
+                          updateValue("djangoSuperuserUsername", event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span>DJANGO_SUPERUSER_PASSWORD</span>
+                      <input
+                        type="password"
+                        value={values.djangoSuperuserPassword}
+                        onChange={(event) =>
+                          updateValue("djangoSuperuserPassword", event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span>AUTH_PROVIDER</span>
+                      <select
+                        value={values.authProvider}
+                        onChange={(event) =>
+                          updateValue(
+                            "authProvider",
+                            event.target.value as WizardValues["authProvider"],
+                          )
+                        }
+                      >
+                        <option value="jwt">jwt</option>
+                        <option value="keycloak">keycloak</option>
+                      </select>
+                    </label>
+                  </>
+                )}
 
                 {values.appMode === "multi_user" && values.authProvider === "keycloak" ? (
                   <>

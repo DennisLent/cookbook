@@ -51,7 +51,7 @@ export default function Login() {
         </div>
 
         <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className={`grid w-full ${registrationEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
             <TabsTrigger value="login">Login</TabsTrigger>
             {registrationEnabled && <TabsTrigger value="signup">Sign Up</TabsTrigger>}
           </TabsList>

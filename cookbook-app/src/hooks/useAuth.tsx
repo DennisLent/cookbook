@@ -31,6 +31,8 @@ type AuthContextType = {
   signup: (username: string, password: string, name: string, email?: string) => Promise<boolean>;
   logout: () => void;
   updateProfile: (updates: Partial<User>, avatarFile?: File) => Promise<User>;
+  updatePreferences: (prefs: UserPrefs, expectedVersion?: number) => Promise<User>;
+  refreshProfile: () => Promise<User>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   isAuthenticated: boolean;
   isInitializing: boolean;
@@ -201,6 +203,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const refreshProfile = async (): Promise<User> => {
+    const profile = normalizeUser(await apiRequest<BackendUser>("/users/me/"));
+    setUser(profile);
+    return profile;
+  };
+
+  const updatePreferences = async (
+    prefs: UserPrefs,
+    expectedVersion = user?.preferencesVersion,
+  ): Promise<User> => {
+    if (!user || expectedVersion === undefined) {
+      throw new Error("You must be logged in to update preferences.");
+    }
+    const profile = normalizeUser(
+      await apiRequest<BackendUser>("/users/me/", {
+        method: "PATCH",
+        body: JSON.stringify({
+          preferences: { prefs },
+          preferencesVersion: expectedVersion,
+        }),
+      }),
+    );
+    setUser(profile);
+    return profile;
+  };
+
   const updateProfile = async (updates: Partial<User>, avatarFile?: File): Promise<User> => {
     if (!user) {
       throw new Error("You must be logged in to update your profile.");
@@ -218,10 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const payload: Record<string, unknown> = {};
       if (updates.name !== undefined) payload.name = updates.name;
       if (updates.email !== undefined) payload.email = updates.email;
-      if (updates.prefs !== undefined) {
-        payload.preferences = { prefs: updates.prefs };
-        payload.preferencesVersion = user.preferencesVersion;
-      }
+      if (updates.prefs !== undefined) return updatePreferences(updates.prefs);
 
       profile = await apiRequest<BackendUser>("/users/me/", {
         method: "PATCH",
@@ -257,6 +282,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         updateProfile,
+        updatePreferences,
+        refreshProfile,
         changePassword,
         isAuthenticated: !!user,
         isInitializing,
