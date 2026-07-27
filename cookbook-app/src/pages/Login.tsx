@@ -1,7 +1,7 @@
 // Combined login and signup page for guest-to-account conversion.
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +13,11 @@ import { ChefHat } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, signup } = useAuth();
+  const { login, signup, authenticationRequired, registrationEnabled } = useAuth();
   const [loginData, setLoginData] = useState({ username: "", password: "" });
   const [signupData, setSignupData] = useState({ username: "", password: "", name: "", email: "" });
+
+  if (!authenticationRequired) return <Navigate to="/" replace />;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,9 +51,9 @@ export default function Login() {
         </div>
 
         <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className={`grid w-full ${registrationEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
             <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            {registrationEnabled && <TabsTrigger value="signup">Sign Up</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="login">
@@ -89,7 +91,7 @@ export default function Login() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="signup">
+          {registrationEnabled && <TabsContent value="signup">
             <Card>
               <CardHeader>
                 <CardTitle>Create Account</CardTitle>
@@ -140,7 +142,7 @@ export default function Login() {
                 </form>
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
 
         <div className="text-center mt-6">

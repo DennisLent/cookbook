@@ -22,6 +22,7 @@ type User = {
   isSuperuser?: boolean;
   prefs: UserPrefs;
   favoriteRecipeIds?: string[];
+  preferencesVersion: number;
 };
 
 type AuthContextType = {
@@ -30,8 +31,26 @@ type AuthContextType = {
   signup: (username: string, password: string, name: string, email?: string) => Promise<boolean>;
   logout: () => void;
   updateProfile: (updates: Partial<User>, avatarFile?: File) => Promise<User>;
+  updatePreferences: (prefs: UserPrefs, expectedVersion?: number) => Promise<User>;
+  refreshProfile: () => Promise<User>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   isAuthenticated: boolean;
+  isInitializing: boolean;
+  mode: "single_user" | "multi_user";
+  authenticationRequired: boolean;
+  registrationEnabled: boolean;
+  passwordManagementEnabled: boolean;
+  administrationEnabled: boolean;
+};
+
+type AppConfig = {
+  mode: "single_user" | "multi_user";
+  authenticationRequired: boolean;
+  registrationEnabled: boolean;
+  authProvider: "none" | "jwt" | "keycloak";
+  profileEnabled: boolean;
+  passwordManagementEnabled: boolean;
+  administrationEnabled: boolean;
 };
 
 type BackendUser = {
@@ -44,6 +63,7 @@ type BackendUser = {
   isSuperuser?: boolean;
   prefs?: Partial<UserPrefs>;
   favorite_recipe_ids?: string[];
+  preferencesVersion?: number;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -67,6 +87,7 @@ function normalizeUser(data: BackendUser): User {
     avatarUrl: data.avatarUrl || undefined,
     isSuperuser: Boolean(data.isSuperuser),
     favoriteRecipeIds: (data.favorite_recipe_ids || []).map((id) => String(id)),
+    preferencesVersion: data.preferencesVersion || 1,
     prefs: {
       ...DEFAULT_PREFS,
       ...(data.prefs || {}),
@@ -75,9 +96,17 @@ function normalizeUser(data: BackendUser): User {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [config, setConfig] = useState<AppConfig | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [bootstrapError, setBootstrapError] = useState(false);
   const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as User) : null;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? (JSON.parse(stored) as User) : null;
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
   });
 
   useEffect(() => {
@@ -98,15 +127,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const bootstrap = async () => {
       try {
-        const profile = await apiRequest<BackendUser>("/users/me/");
-        if (!cancelled) {
-          setUser(normalizeUser(profile));
+        const appConfig = await apiRequest<AppConfig>("/app/config/");
+        if (cancelled) return;
+        setConfig(appConfig);
+        if (!appConfig.authenticationRequired) {
+          // Credentials from a previous multi-user deployment must never select
+          // an identity after the instance enters shared-owner mode.
+          clearTokens();
+        }
+        try {
+          const profile = await apiRequest<BackendUser>("/users/me/");
+          if (!cancelled) setUser(normalizeUser(profile));
+        } catch {
+          clearTokens();
+          if (!cancelled) {
+            setUser(null);
+            // Anonymous is a valid multi-user bootstrap, but the shared owner
+            // is mandatory in single-user mode.
+            setBootstrapError(!appConfig.authenticationRequired);
+          }
         }
       } catch {
         if (!cancelled) {
           clearTokens();
           setUser(null);
+          setBootstrapError(true);
         }
+      } finally {
+        if (!cancelled) setIsInitializing(false);
       }
     };
 
@@ -155,6 +203,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const refreshProfile = async (): Promise<User> => {
+    const profile = normalizeUser(await apiRequest<BackendUser>("/users/me/"));
+    setUser(profile);
+    return profile;
+  };
+
+  const updatePreferences = async (
+    prefs: UserPrefs,
+    expectedVersion = user?.preferencesVersion,
+  ): Promise<User> => {
+    if (!user || expectedVersion === undefined) {
+      throw new Error("You must be logged in to update preferences.");
+    }
+    const profile = normalizeUser(
+      await apiRequest<BackendUser>("/users/me/", {
+        method: "PATCH",
+        body: JSON.stringify({
+          preferences: { prefs },
+          preferencesVersion: expectedVersion,
+        }),
+      }),
+    );
+    setUser(profile);
+    return profile;
+  };
+
   const updateProfile = async (updates: Partial<User>, avatarFile?: File): Promise<User> => {
     if (!user) {
       throw new Error("You must be logged in to update your profile.");
@@ -172,8 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const payload: Record<string, unknown> = {};
       if (updates.name !== undefined) payload.name = updates.name;
       if (updates.email !== undefined) payload.email = updates.email;
-      if (updates.favoriteRecipeIds !== undefined) payload.favorite_recipe_ids = updates.favoriteRecipeIds;
-      if (updates.prefs !== undefined) payload.preferences = { prefs: updates.prefs };
+      if (updates.prefs !== undefined) return updatePreferences(updates.prefs);
 
       profile = await apiRequest<BackendUser>("/users/me/", {
         method: "PATCH",
@@ -187,7 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
-    if (!user) {
+    if (!user || !config?.passwordManagementEnabled) {
       throw new Error("You must be logged in to change your password.");
     }
 
@@ -209,11 +282,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         updateProfile,
+        updatePreferences,
+        refreshProfile,
         changePassword,
         isAuthenticated: !!user,
+        isInitializing,
+        mode: config?.mode || "multi_user",
+        authenticationRequired: config?.authenticationRequired ?? true,
+        registrationEnabled: config?.registrationEnabled ?? false,
+        passwordManagementEnabled: config?.passwordManagementEnabled ?? false,
+        administrationEnabled: config?.administrationEnabled ?? false,
       }}
     >
-      {children}
+      {isInitializing ? (
+        <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+          Loading cookbook…
+        </div>
+      ) : bootstrapError || !config ? (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+          <p className="text-lg font-medium">The cookbook could not initialize.</p>
+          <p className="text-sm text-muted-foreground">
+            Check the backend configuration and try again.
+          </p>
+          <button className="rounded-md border px-4 py-2" onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        </div>
+      ) : children}
     </AuthContext.Provider>
   );
 }

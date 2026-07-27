@@ -10,6 +10,7 @@ POSTGRES_HOST=db
 POSTGRES_PORT=5432
 
 AUTH_PROVIDER=jwt
+APP_MODE=multi_user
 SEED_INTERNAL_DATA=0
 
 CELERY_BROKER_URL=redis://redis:6379/0
@@ -21,6 +22,9 @@ RECIPE_IMPORT_JOBS_RATE_LIMIT=1200/hour
 RECIPE_IMPORT_MAX_FILESIZE_BYTES=104857600
 RECIPE_IMPORT_DOWNLOAD_TIMEOUT_SECONDS=180
 RECIPE_IMPORT_ALLOWED_HOSTS=instagram.com,www.instagram.com,m.instagram.com,tiktok.com,www.tiktok.com,m.tiktok.com,vm.tiktok.com,youtube.com,www.youtube.com,m.youtube.com,youtu.be
+RECIPE_IMPORT_COOKIE_FILE=
+PUBLIC_HOST=localhost
+FRONTEND_HTTP_BIND=80
 
 USE_S3_MEDIA_STORAGE=False
 AWS_ACCESS_KEY_ID=

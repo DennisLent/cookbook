@@ -106,7 +106,7 @@ const Index = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { settings } = useSettings();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, authenticationRequired } = useAuth();
   const { collections, createCollection, deleteCollection } = useCollections();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
@@ -313,16 +313,20 @@ const Index = () => {
                     <div className="flex items-center justify-start gap-2 p-2">
                       <div className="flex flex-col space-y-1 leading-none">
                         <p className="font-medium">{user?.name}</p>
-                        <p className="text-sm text-muted-foreground">@{user?.username}</p>
+                        {authenticationRequired && <p className="text-sm text-muted-foreground">@{user?.username}</p>}
                       </div>
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => navigate("/profile")}>
                       <User className="h-4 w-4 mr-2" />
-                      Profile
+                      {authenticationRequired ? "Profile" : "Preferences"}
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+                    {authenticationRequired && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (

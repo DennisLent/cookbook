@@ -1,13 +1,15 @@
 """REST API views for recipes, meal planning, collections, and social actions."""
 
 from django.conf import settings
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, permissions, status
-from .models import Recipe, RecipeImportJob, Tag, Rating, Comment, Ingredient
+from .models import Favorite, Recipe, RecipeImportJob, Tag, Rating, Comment, Ingredient
 from .serializers import CollectionSerializer, RecipeImportJobCreateSerializer, RecipeImportJobSerializer, RecipeSerializer, TagSerializer, RatingSerializer, CommentSerializer, IngredientSerializer
 import random
 from django.db.models import Avg, Case, FloatField, IntegerField, Q, Value, When
 from django.db.models.functions import Coalesce
 from django.db import transaction
+from django.db import IntegrityError
 from django.db.transaction import on_commit
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -101,7 +103,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         favorite_ids = []
         if request.user and request.user.is_authenticated:
-            favorite_ids = request.user.favorite_recipe_ids or []
+            favorite_ids = list(request.user.favorites.values_list("recipe_id", flat=True))
             if favorites_only:
                 qs = qs.filter(pk__in=favorite_ids)
         elif favorites_only:
@@ -157,11 +159,66 @@ class RecipeViewSet(viewsets.ModelViewSet):
                         headers=headers)
 
     def update(self, request, *args, **kwargs):
-        recipe = self.get_object()
-        serializer = self.get_serializer(recipe, data=request.data, partial=False, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        with transaction.atomic():
+            recipe = get_object_or_404(Recipe.objects.select_for_update(), pk=kwargs["pk"])
+            self.check_object_permissions(request, recipe)
+            expected_version = request.data.get("version")
+            if expected_version is None:
+                return error_response(
+                    code="recipe_version_required",
+                    message="The current recipe version is required before saving.",
+                    http_status=status.HTTP_428_PRECONDITION_REQUIRED,
+                    details={"currentVersion": recipe.version},
+                )
+            try:
+                expected_version = int(expected_version)
+            except (TypeError, ValueError):
+                expected_version = -1
+            if expected_version != recipe.version:
+                return error_response(
+                    code="recipe_version_conflict",
+                    message="This recipe was changed by another client. Refresh it before saving again.",
+                    http_status=status.HTTP_409_CONFLICT,
+                    details={"currentVersion": recipe.version},
+                )
+            serializer = self.get_serializer(
+                recipe,
+                data=request.data,
+                partial=False,
+                context={"request": request},
+            )
+            serializer.is_valid(raise_exception=True)
+            recipe = serializer.save(version=recipe.version + 1)
+            return Response(self.get_serializer(recipe).data, status=status.HTTP_200_OK)
+
+    def partial_update(self, request, *args, **kwargs):
+        with transaction.atomic():
+            recipe = get_object_or_404(Recipe.objects.select_for_update(), pk=kwargs["pk"])
+            self.check_object_permissions(request, recipe)
+            expected_version = request.data.get("version")
+            if expected_version is None:
+                return error_response(
+                    code="recipe_version_required",
+                    message="The current recipe version is required before saving.",
+                    http_status=status.HTTP_428_PRECONDITION_REQUIRED,
+                    details={"currentVersion": recipe.version},
+                )
+            if str(expected_version) != str(recipe.version):
+                return error_response(
+                    code="recipe_version_conflict",
+                    message="This recipe was changed by another client. Refresh it before saving again.",
+                    http_status=status.HTTP_409_CONFLICT,
+                    details={"currentVersion": recipe.version},
+                )
+            serializer = self.get_serializer(
+                recipe,
+                data=request.data,
+                partial=True,
+                context={"request": request},
+            )
+            serializer.is_valid(raise_exception=True)
+            recipe = serializer.save(version=recipe.version + 1)
+            return Response(self.get_serializer(recipe).data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='plan', permission_classes=[permissions.AllowAny])
     def plan(self, request):
@@ -345,8 +402,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         """Favorite/unfavorite a recipe for the current user, or fetch status."""
         recipe = self.get_object()
         user = request.user
-        favorites = list(user.favorite_recipe_ids or [])
-        is_favorited = recipe.pk in favorites
+        is_favorited = Favorite.objects.filter(user=user, recipe=recipe).exists()
 
         if request.method == 'GET':
             return Response({
@@ -355,19 +411,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
             })
 
         if request.method == 'POST':
-            if not is_favorited:
-                favorites.append(recipe.pk)
-                user.favorite_recipe_ids = favorites
-                user.save(update_fields=["favorite_recipe_ids"])
+            Favorite.objects.get_or_create(user=user, recipe=recipe)
             return Response({
                 'is_favorited': True,
                 'favorites_count': RecipeSerializer(recipe, context={"request": request}).data["favorites_count"],
             }, status=status.HTTP_200_OK)
 
         # DELETE
-        if is_favorited:
-            user.favorite_recipe_ids = [favorite_id for favorite_id in favorites if favorite_id != recipe.pk]
-            user.save(update_fields=["favorite_recipe_ids"])
+        Favorite.objects.filter(user=user, recipe=recipe).delete()
         return Response({
             'is_favorited': False,
             'favorites_count': RecipeSerializer(recipe, context={"request": request}).data["favorites_count"],
@@ -394,10 +445,19 @@ class RecipeViewSet(viewsets.ModelViewSet):
                 details={"field": "stars"},
             )
 
-        rating, _created = Rating.objects.get_or_create(recipe=recipe, user=user, defaults={'stars': stars})
-        if not _created:
-            rating.stars = stars
-            rating.save()
+        try:
+            with transaction.atomic():
+                rating, _created = Rating.objects.update_or_create(
+                    recipe=recipe,
+                    user=user,
+                    defaults={'stars': stars},
+                )
+        except IntegrityError:
+            # A concurrent first rating may win the unique-key race.
+            with transaction.atomic():
+                rating = Rating.objects.select_for_update().get(recipe=recipe, user=user)
+                rating.stars = stars
+                rating.save(update_fields=["stars", "updated_at"])
 
         avg = Recipe.objects.filter(pk=recipe.pk).aggregate(avg=Avg('ratings__stars')).get('avg')
         return Response({
@@ -470,6 +530,13 @@ class RecipeImportJobViewSet(viewsets.GenericViewSet):
         source_url = serializer.validated_data["url"]
         download_only = serializer.validated_data.get("videoOnly", False)
         persist_media = serializer.validated_data.get("saveVideo", False)
+        idempotency_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+        if idempotency_key and len(idempotency_key) > 128:
+            return error_response(
+                code="invalid_idempotency_key",
+                message="Idempotency-Key must not exceed 128 characters.",
+                http_status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             platform = validate_public_video_url(source_url)
@@ -482,19 +549,42 @@ class RecipeImportJobViewSet(viewsets.GenericViewSet):
             )
 
         with transaction.atomic():
-            job = RecipeImportJob.objects.create(
-                user=request.user,
-                source_url=source_url,
-                platform=platform,
-                status=RecipeImportJob.STATUS_QUEUED,
-                download_only=download_only,
-                persist_media=persist_media,
-            )
+            defaults = {
+                "source_url": source_url,
+                "platform": platform,
+                "status": RecipeImportJob.STATUS_QUEUED,
+                "download_only": download_only,
+                "persist_media": persist_media,
+            }
+            if idempotency_key:
+                job, created = RecipeImportJob.objects.get_or_create(
+                    user=request.user,
+                    idempotency_key=idempotency_key,
+                    defaults=defaults,
+                )
+                if not created and (
+                    job.source_url != source_url
+                    or job.download_only != download_only
+                    or job.persist_media != persist_media
+                ):
+                    return error_response(
+                        code="idempotency_key_reused",
+                        message="This Idempotency-Key was already used for a different import.",
+                        http_status=status.HTTP_409_CONFLICT,
+                    )
+            else:
+                job = RecipeImportJob.objects.create(
+                    user=request.user,
+                    idempotency_key=None,
+                    **defaults,
+                )
+                created = True
 
-            def enqueue():
-                process_recipe_import_job.delay(job.pk)
+            if created:
+                def enqueue():
+                    process_recipe_import_job.delay(job.pk)
 
-            on_commit(enqueue)
+                on_commit(enqueue)
 
         return Response(
             RecipeImportJobSerializer(job, context={"request": request}).data,
@@ -525,3 +615,27 @@ class CollectionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save()
+
+    @action(detail=True, methods=["post", "delete"], url_path=r"recipes/(?P<recipe_id>[^/.]+)")
+    def recipe_membership(self, request, pk=None, recipe_id=None):
+        """Atomically add/remove one member without replacing the full set."""
+
+        collection = self.get_object()
+        try:
+            recipe = Recipe.objects.get(pk=recipe_id)
+        except Recipe.DoesNotExist:
+            return error_response(
+                code="recipe_not_found",
+                message="The requested recipe does not exist.",
+                http_status=status.HTTP_404_NOT_FOUND,
+            )
+        from .models import CollectionRecipe
+
+        if request.method == "POST":
+            CollectionRecipe.objects.get_or_create(collection=collection, recipe=recipe)
+        else:
+            CollectionRecipe.objects.filter(collection=collection, recipe=recipe).delete()
+        return Response(
+            CollectionSerializer(collection, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )

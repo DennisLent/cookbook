@@ -6,10 +6,12 @@ from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from yt_dlp.utils import DownloadError
 
 from recipes.extraction.utils import validate_public_video_url
 from recipes.models import RecipeImportJob
 from recipes.extraction.services import build_recipe_payload_from_details
+from recipes.extraction.utils.public_video import PublicVideoDownloadError, download_public_video
 
 
 class RecipeImportJobApiTests(APITestCase):
@@ -340,6 +342,32 @@ class PublicVideoValidationTests(APITestCase):
             validate_public_video_url("https://youtu.be/HILQ80TNyCk"),
             "youtube",
         )
+
+
+class PublicVideoDownloadTests(APITestCase):
+    @override_settings(RECIPE_IMPORT_COOKIE_FILE="/tmp/import-cookies.txt")
+    @patch("recipes.extraction.utils.public_video.Path.is_file", return_value=True)
+    @patch("recipes.extraction.utils.public_video.YoutubeDL")
+    def test_download_public_video_passes_cookie_file_to_yt_dlp(self, youtube_dl_mock, _is_file_mock):
+        manager = youtube_dl_mock.return_value.__enter__.return_value
+        manager.extract_info.side_effect = DownloadError("ERROR: Sign in to confirm you're not a bot")
+
+        with self.assertRaises(PublicVideoDownloadError):
+            download_public_video("https://www.instagram.com/reel/abc123/", "/tmp/recipe-import")
+
+        options = youtube_dl_mock.call_args.args[0]
+        self.assertEqual(options["cookiefile"], "/tmp/import-cookies.txt")
+
+    @patch("recipes.extraction.utils.public_video.YoutubeDL")
+    def test_download_public_video_includes_yt_dlp_reason_in_failure_message(self, youtube_dl_mock):
+        manager = youtube_dl_mock.return_value.__enter__.return_value
+        manager.extract_info.side_effect = DownloadError("ERROR: HTTP Error 403: Forbidden")
+
+        with self.assertRaises(PublicVideoDownloadError) as ctx:
+            download_public_video("https://www.instagram.com/reel/abc123/", "/tmp/recipe-import")
+
+        self.assertEqual(ctx.exception.code, "download_failed")
+        self.assertIn("yt-dlp reported: HTTP Error 403: Forbidden", ctx.exception.message)
 
 
 class RecipeExtractionServiceTests(APITestCase):

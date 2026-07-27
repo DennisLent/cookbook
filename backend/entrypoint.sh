@@ -8,11 +8,25 @@ while ! nc -z "$POSTGRES_HOST" "$POSTGRES_PORT"; do
 done
 
 if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
+  INSTANCE_MODE_ARGS=""
+  # If the last pre-feature user migration was already applied before this
+  # process started, this is an upgraded account database, even when empty.
+  if python manage.py showmigrations users 2>/dev/null | grep -q '\[X\] 0006_appupdatestatus'; then
+    INSTANCE_MODE_ARGS="--existing-installation"
+  fi
   python manage.py migrate
+  # Persist and validate the security mode before any bootstrap account is
+  # created. This distinguishes a genuinely fresh single-user installation
+  # from an existing account database configured incorrectly.
+  python manage.py initialize_instance_mode ${INSTANCE_MODE_ARGS}
 fi
 
-if [ "${RUN_MIGRATIONS:-1}" = "1" ] && [ "${SEED_INTERNAL_DATA:-0}" = "1" ]; then
-  python manage.py seed_internal_data --username "$DJANGO_SUPERUSER_USERNAME" --password "$DJANGO_SUPERUSER_PASSWORD"
+if [ "${RUN_MIGRATIONS:-1}" = "1" ] && [ "${APP_MODE:-multi_user}" = "multi_user" ] && [ -n "${DJANGO_SUPERUSER_USERNAME:-}" ] && [ -n "${DJANGO_SUPERUSER_PASSWORD:-}" ]; then
+  if [ "${SEED_INTERNAL_DATA:-0}" = "1" ]; then
+    python manage.py seed_internal_data --username "$DJANGO_SUPERUSER_USERNAME" --password "$DJANGO_SUPERUSER_PASSWORD"
+  else
+    python manage.py create_super_user "$DJANGO_SUPERUSER_USERNAME" "$DJANGO_SUPERUSER_PASSWORD"
+  fi
 fi
 
 if [ "$#" -gt 0 ]; then

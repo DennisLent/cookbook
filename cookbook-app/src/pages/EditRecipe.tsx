@@ -145,6 +145,7 @@ export default function EditRecipe() {
     }
     try {
       await updateRecipe(id!, {
+        version: recipe.version,
         title,
         description,
         servings,

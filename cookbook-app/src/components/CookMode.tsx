@@ -124,17 +124,19 @@ export const CookMode = ({ recipe, onClose }: CookModeProps) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-background">
-      <div className="h-screen flex flex-col">
+      <div className="flex h-dvh flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h1 className="text-xl font-semibold line-clamp-1">{recipe.title}</h1>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
+        <div className="shrink-0 border-b p-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-semibold line-clamp-1">{recipe.title}</h1>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto p-6 md:p-12 space-y-8">
             {/* Progress */}
             <div className="space-y-2">
@@ -274,7 +276,7 @@ export const CookMode = ({ recipe, onClose }: CookModeProps) => {
         </div>
 
         {/* Footer Navigation */}
-        <div className="border-t p-4">
+        <div className="shrink-0 border-t bg-background p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
             <Button
               variant="outline"

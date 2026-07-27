@@ -8,6 +8,7 @@ ENV_FILE_DEFAULT="${ROOT_DIR}/.env.production"
 DOCKER_DATA_DIR="${ROOT_DIR}/docker-data"
 BOOTSTRAP_DIR="${DOCKER_DATA_DIR}/bootstrap"
 VOSK_DIR="${DOCKER_DATA_DIR}/vosk"
+IMPORT_COOKIES_DIR="${DOCKER_DATA_DIR}/import-cookies"
 DEFAULT_VOSK_URL="https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip"
 
 prompt_value() {
@@ -139,6 +140,7 @@ POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 
+APP_MODE=${APP_MODE}
 AUTH_PROVIDER=${AUTH_PROVIDER}
 KEYCLOAK_REALM=${KEYCLOAK_REALM}
 KEYCLOAK_URL=${KEYCLOAK_URL}
@@ -162,6 +164,7 @@ RECIPE_IMPORT_JOBS_RATE_LIMIT=1200/hour
 RECIPE_IMPORT_MAX_FILESIZE_BYTES=104857600
 RECIPE_IMPORT_DOWNLOAD_TIMEOUT_SECONDS=180
 RECIPE_IMPORT_ALLOWED_HOSTS=instagram.com,www.instagram.com,m.instagram.com,tiktok.com,www.tiktok.com,m.tiktok.com,vm.tiktok.com,youtube.com,www.youtube.com,m.youtube.com,youtu.be
+RECIPE_IMPORT_COOKIE_FILE=/app/import-cookies/cookies.txt
 
 USE_S3_MEDIA_STORAGE=False
 AWS_ACCESS_KEY_ID=
@@ -174,19 +177,27 @@ AWS_S3_CUSTOM_DOMAIN=
 VOSK_MODEL_PATH=/app/vosk-model
 OLLAMA_DEFAULT_MODEL=${OLLAMA_DEFAULT_MODEL}
 OLLAMA_HOST=${OLLAMA_HOST}
+PUBLIC_HOST=${PUBLIC_HOST}
+FRONTEND_HTTP_BIND=${FRONTEND_HTTP_BIND}
 EOF
 }
 
 run_compose() {
+  local compose_args=()
+  local compose_file
+  for compose_file in "${COMPOSE_FILES[@]}"; do
+    compose_args+=(-f "${compose_file}")
+  done
+
   ENV_FILE="${ENV_FILE_PATH}" \
   EMMA_VERSION="${EMMA_VERSION}" \
   EMMA_GIT_SHA="${EMMA_GIT_SHA:-}" \
   EMMA_BACKEND_IMAGE="${EMMA_BACKEND_IMAGE}" \
   EMMA_FRONTEND_IMAGE="${EMMA_FRONTEND_IMAGE}" \
-  docker compose "$@"
+  docker compose "${compose_args[@]}" "$@"
 }
 
-mkdir -p "${BOOTSTRAP_DIR}" "${VOSK_DIR}"
+mkdir -p "${BOOTSTRAP_DIR}" "${VOSK_DIR}" "${IMPORT_COOKIES_DIR}"
 
 echo "Cookbook Docker production setup"
 
@@ -199,6 +210,16 @@ fi
 PUBLIC_APP_URL="$(normalize_origin_url "${PUBLIC_APP_URL_INPUT}" "${PUBLIC_URL_SCHEME}")"
 PUBLIC_HOST="$(extract_host_from_url "${PUBLIC_APP_URL}")"
 ALLOWED_HOSTS="$(prompt_value "Django ALLOWED_HOSTS" "${PUBLIC_HOST},localhost,127.0.0.1")"
+ENABLE_LOCAL_TLS=0
+FRONTEND_HTTP_BIND="80"
+if prompt_yes_no "Enable local HTTPS with Caddy using an internal CA?" "$([[ "${PUBLIC_APP_URL}" == https://* ]] && echo y || echo n)"; then
+  ENABLE_LOCAL_TLS=1
+  FRONTEND_HTTP_BIND="127.0.0.1:8080"
+fi
+COMPOSE_FILES=("${ROOT_DIR}/docker-compose.yml")
+if [[ "${ENABLE_LOCAL_TLS}" -eq 1 ]]; then
+  COMPOSE_FILES+=("${ROOT_DIR}/docker-compose.caddy.yml")
+fi
 SECRET_KEY="$(generate_secret_key)"
 EMMA_VERSION="$(prompt_value "emma-cookbook version tag" "latest")"
 DOCKERHUB_NAMESPACE="$(prompt_value "Docker Hub namespace" "dennislent")"
@@ -214,16 +235,26 @@ POSTGRES_DB="$(prompt_value "PostgreSQL database name" "cookbook")"
 POSTGRES_USER="$(prompt_value "PostgreSQL user" "cookbook")"
 POSTGRES_PASSWORD="$(prompt_secret "PostgreSQL password")"
 
-DJANGO_SUPERUSER_USERNAME="$(prompt_value "Django admin username" "admin")"
-DJANGO_SUPERUSER_PASSWORD="$(prompt_secret "Django admin password")"
+APP_MODE="$(prompt_value "Application mode (multi_user/single_user)" "multi_user")"
+if [[ "${APP_MODE}" != "multi_user" && "${APP_MODE}" != "single_user" ]]; then
+  printf 'APP_MODE must be multi_user or single_user.\n' >&2
+  exit 1
+fi
 
-AUTH_PROVIDER="$(prompt_value "Auth provider (jwt/keycloak)" "jwt")"
+DJANGO_SUPERUSER_USERNAME=""
+DJANGO_SUPERUSER_PASSWORD=""
+AUTH_PROVIDER="jwt"
+if [[ "${APP_MODE}" == "multi_user" ]]; then
+  DJANGO_SUPERUSER_USERNAME="$(prompt_value "Django admin username" "admin")"
+  DJANGO_SUPERUSER_PASSWORD="$(prompt_secret "Django admin password")"
+  AUTH_PROVIDER="$(prompt_value "Auth provider (jwt/keycloak)" "jwt")"
+fi
 KEYCLOAK_REALM="cookbook"
 KEYCLOAK_URL="http://localhost:8080"
 KEYCLOAK_CLIENT_ID="cookbook-web"
 KEYCLOAK_AUDIENCE="cookbook-web"
 KEYCLOAK_ADMIN_ROLE="cookbook-admin"
-if [[ "${AUTH_PROVIDER}" == "keycloak" ]]; then
+if [[ "${APP_MODE}" == "multi_user" && "${AUTH_PROVIDER}" == "keycloak" ]]; then
   KEYCLOAK_URL="$(prompt_value "Keycloak base URL" "${KEYCLOAK_URL}")"
   KEYCLOAK_REALM="$(prompt_value "Keycloak realm" "${KEYCLOAK_REALM}")"
   KEYCLOAK_CLIENT_ID="$(prompt_value "Keycloak client ID" "${KEYCLOAK_CLIENT_ID}")"
@@ -310,6 +341,9 @@ fi
 
 echo "Starting application services..."
 run_compose up -d backend worker beat frontend
+if [[ "${ENABLE_LOCAL_TLS}" -eq 1 ]]; then
+  run_compose up -d caddy
+fi
 
 cat <<EOF
 
@@ -323,6 +357,8 @@ Version tag: ${EMMA_VERSION}
 Notes:
 - If ${PUBLIC_HOST} is a custom hostname, make sure it resolves on the machine you are using.
 - For local testing, add an entry such as `127.0.0.1 ${PUBLIC_HOST}` to your hosts file if DNS does not already provide it.
+- Place an optional Netscape-format cookie export at ${IMPORT_COOKIES_DIR}/cookies.txt if Instagram or YouTube requires authenticated downloads from the server.
+- If you enabled Caddy local TLS, trust the root certificate at docker-data/caddy/data/caddy/pki/authorities/local/root.crt on each client device and browse to https://${PUBLIC_HOST}
 - Keycloak realm/client creation is still manual
 - The Vosk model was prepared in ${VOSK_DIR}
 - If you used a JSON backup import, the backend app data was restored before the services were started.

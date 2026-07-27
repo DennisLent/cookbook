@@ -1,5 +1,6 @@
 """Background jobs for long-running recipe import and extraction workflows."""
 
+import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -17,6 +18,8 @@ from .extraction.utils import (
     transcribe_wav_with_vosk,
 )
 from .models import RecipeImportJob, get_effective_vosk_model_path
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True, autoretry_for=(), retry_backoff=False, max_retries=5)
@@ -75,6 +78,13 @@ def process_recipe_import_job(self, job_id: int):
                 job.save()
 
     except PublicVideoDownloadError as exc:
+        logger.warning(
+            "Recipe import job %s failed for %s with %s: %s",
+            job.pk,
+            job.source_url,
+            exc.code,
+            exc.message,
+        )
         job.status = RecipeImportJob.STATUS_FAILED
         job.error_code = exc.code
         job.error_message = exc.message
@@ -82,6 +92,7 @@ def process_recipe_import_job(self, job_id: int):
         job.save(update_fields=["status", "error_code", "error_message", "finished_at", "updated_at"])
         raise
     except Exception as exc:
+        logger.exception("Recipe import job %s failed unexpectedly for %s", job.pk, job.source_url)
         job.status = RecipeImportJob.STATUS_FAILED
         job.error_code = "unexpected_error"
         job.error_message = str(exc)

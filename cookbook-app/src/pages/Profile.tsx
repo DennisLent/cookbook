@@ -14,11 +14,21 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, Check } from "lucide-react";
 import { colorSchemes, getSchemeById } from "@/lib/colorSchemes";
-import { getApiErrorMessage } from "@/lib/api";
+import { ApiError, getApiErrorMessage } from "@/lib/api";
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, updateProfile, changePassword, isAuthenticated } = useAuth();
+  const {
+    user,
+    updateProfile,
+    updatePreferences,
+    refreshProfile,
+    changePassword,
+    isAuthenticated,
+    authenticationRequired,
+    passwordManagementEnabled,
+    mode,
+  } = useAuth();
   const [formData, setFormData] = useState({
     name: user?.name || "",
     email: user?.email || "",
@@ -61,11 +71,39 @@ export default function Profile() {
     key: keyof typeof user.prefs,
     value: string | boolean,
   ) => {
+    const applyPreference = async (
+      prefs: typeof user.prefs,
+      expectedVersion?: number,
+    ) => updatePreferences(prefs, expectedVersion);
+
     try {
-      await updateProfile({
-        prefs: { ...user.prefs, [key]: value },
-      });
+      await applyPreference({ ...user.prefs, [key]: value });
     } catch (error) {
+      if ((error as ApiError)?.code === "preferences_version_conflict") {
+        try {
+          const latest = await refreshProfile();
+          toast.error("Preferences changed on another device.", {
+            description: "The latest preferences were loaded. Retry to apply your change.",
+            action: {
+              label: "Retry",
+              onClick: () => {
+                applyPreference(
+                  { ...latest.prefs, [key]: value },
+                  latest.preferencesVersion,
+                )
+                  .then(() => toast.success("Preference updated"))
+                  .catch((retryError) =>
+                    toast.error(getApiErrorMessage(retryError, "Preference update failed.")),
+                  );
+              },
+            },
+          });
+          return;
+        } catch (refreshError) {
+          toast.error(getApiErrorMessage(refreshError, "Could not load the latest preferences."));
+          return;
+        }
+      }
       toast.error(getApiErrorMessage(error, "Preference update failed."));
     }
   };
@@ -111,11 +149,13 @@ export default function Profile() {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-2xl">
-        <h1 className="text-3xl font-semibold mb-8">Profile Settings</h1>
+        <h1 className="text-3xl font-semibold mb-8">
+          {mode === "single_user" ? "Preferences" : "Profile Settings"}
+        </h1>
 
         <div className="space-y-6">
           {/* Avatar Section */}
-          <Card>
+          {authenticationRequired && <Card>
             <CardHeader>
               <CardTitle>Profile Picture</CardTitle>
             </CardHeader>
@@ -140,10 +180,10 @@ export default function Profile() {
                 </Button>
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Basic Info */}
-          <Card>
+          {authenticationRequired && <Card>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
               <CardDescription>Update your personal details</CardDescription>
@@ -176,9 +216,9 @@ export default function Profile() {
                 <Button type="submit">Save Changes</Button>
               </form>
             </CardContent>
-          </Card>
+          </Card>}
 
-          <Card>
+          {passwordManagementEnabled && <Card>
             <CardHeader>
               <CardTitle>Change Password</CardTitle>
               <CardDescription>Use your current password to set a new one</CardDescription>
@@ -218,7 +258,7 @@ export default function Profile() {
                 <Button type="submit">Update Password</Button>
               </form>
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* Color Scheme */}
           <Card>

@@ -18,6 +18,8 @@ export type Step = {
 
 export type Recipe = {
   id: string;
+  /** Server revision used to reject stale whole-recipe updates. */
+  version?: number;
   title: string;
   description?: string;
   created_by?: string;

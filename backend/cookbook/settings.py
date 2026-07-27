@@ -61,8 +61,17 @@ ALLOWED_HOSTS = config(
     cast=Csv(),
     default='127.0.0.1,localhost,testserver,backend,frontend',
 )
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 AUTH_USER_MODEL = 'users.User'
+
+# APP_MODE controls whether callers authenticate as individual accounts or as
+# one shared instance owner. It is intentionally separate from AUTH_PROVIDER,
+# which only selects the credential mechanism used in multi-user mode.
+APP_MODE = str(config('APP_MODE', default='multi_user')).strip().lower()
+if APP_MODE not in {'multi_user', 'single_user'}:
+    raise ValueError("APP_MODE must be either 'multi_user' or 'single_user'.")
 
 # Media for images and avatars
 MEDIA_URL = '/media/'
@@ -112,6 +121,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'cookbook.authentication.SingleUserAuthentication',
         'cookbook.authentication.OIDCAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
@@ -168,10 +178,11 @@ has_postgres_config = any(
 )
 
 if database_engine == 'sqlite':
+    sqlite_database_path = str(config('SQLITE_DATABASE_PATH', default='')).strip()
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': Path(sqlite_database_path) if sqlite_database_path else BASE_DIR / 'db.sqlite3',
         }
     }
 elif database_engine in {'postgres', 'postgresql'} or has_postgres_config:
@@ -317,6 +328,7 @@ RECIPE_IMPORT_ALLOWED_HOSTS = config(
     cast=Csv(),
     default='instagram.com,www.instagram.com,m.instagram.com,tiktok.com,www.tiktok.com,m.tiktok.com,vm.tiktok.com,youtube.com,www.youtube.com,m.youtube.com,youtu.be',
 )
+RECIPE_IMPORT_COOKIE_FILE = config('RECIPE_IMPORT_COOKIE_FILE', default='')
 VOSK_MODEL_UPLOAD_MAX_ARCHIVE_BYTES = config('VOSK_MODEL_UPLOAD_MAX_ARCHIVE_BYTES', cast=int, default=1073741824)
 VOSK_MODEL_UPLOAD_MAX_EXTRACTED_BYTES = config('VOSK_MODEL_UPLOAD_MAX_EXTRACTED_BYTES', cast=int, default=2147483648)
 VOSK_MODEL_UPLOAD_MAX_FILE_COUNT = config('VOSK_MODEL_UPLOAD_MAX_FILE_COUNT', cast=int, default=5000)

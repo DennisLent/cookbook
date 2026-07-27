@@ -61,6 +61,9 @@ class Recipe(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recipes')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Incremented on every API update so stale clients can be rejected instead
+    # of silently replacing another device's nested recipe edits.
+    version = models.PositiveBigIntegerField(default=1)
     # Tags for recipes
     tags = models.ManyToManyField(Tag, related_name='recipes', blank=True)
     # Servings
@@ -182,6 +185,9 @@ class RecipeImportJob(models.Model):
     )
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="recipe_import_jobs")
+    # Client-generated retry key; NULL keeps legacy/non-idempotent submissions
+    # independent while the unique pair deduplicates explicit retries.
+    idempotency_key = models.CharField(max_length=128, null=True, blank=True)
     source_url = models.URLField()
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_QUEUED)
@@ -203,6 +209,12 @@ class RecipeImportJob(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "idempotency_key"),
+                name="unique_user_recipe_import_idempotency_key",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.platform} import #{self.pk} ({self.status})"
@@ -260,6 +272,18 @@ class Rating(models.Model):
 
     def __str__(self):
         return f"{self.stars}⭐ by {self.user.username} for {self.recipe.title}"
+
+
+class Favorite(models.Model):
+    """Normalized favorite membership safe for concurrent add/remove calls."""
+
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name="favorites")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="favorites")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "recipe")
+
 
 class Comment(models.Model):
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name='comments')

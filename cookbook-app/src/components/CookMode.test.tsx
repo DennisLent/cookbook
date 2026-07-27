@@ -26,4 +26,12 @@ describe("CookMode", () => {
     expect(screen.getByText("0.75 cup sugar")).toBeInTheDocument();
     expect((globalThis as { __cookmode_hacked?: boolean }).__cookmode_hacked).toBeUndefined();
   });
+
+  it("keeps the mobile footer controls in the viewport-safe shell", () => {
+    const { container } = render(<CookMode recipe={recipe} onClose={vi.fn()} />);
+
+    expect(container.querySelector(".h-dvh")).toBeTruthy();
+    expect(container.querySelector(".min-h-0.flex-1.overflow-y-auto")).toBeTruthy();
+    expect(container.querySelector(".pb-\\[calc\\(env\\(safe-area-inset-bottom\\)\\+1rem\\)\\]")).toBeTruthy();
+  });
 });

@@ -64,6 +64,7 @@ class RecipeSuggestionContractTests(APITestCase):
             f"/api/recipes/{self.main.pk}/",
             {
                 "title": self.main.title,
+                "version": self.main.version,
                 "description": "",
                 "servings": 4,
                 "tags": [],

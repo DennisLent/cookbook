@@ -24,11 +24,11 @@ const SESSION_KEY = "emma-cookbook-update-toast-version";
 
 export function UpdateNotifier() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, administrationEnabled } = useAuth();
   const hasRequestedRef = useRef(false);
 
   useEffect(() => {
-    if (!user?.isSuperuser || hasRequestedRef.current) {
+    if (!(user?.isSuperuser || administrationEnabled) || hasRequestedRef.current) {
       return;
     }
 
@@ -57,7 +57,7 @@ export function UpdateNotifier() {
         });
       })
       .catch(() => undefined);
-  }, [navigate, user?.isSuperuser]);
+  }, [administrationEnabled, navigate, user?.isSuperuser]);
 
   return null;
 }

@@ -8,9 +8,8 @@ from django.shortcuts import redirect
 from django.views.static import serve
 from django.urls import re_path
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from recipes.views import CollectionViewSet, RecipeImportJobViewSet, RecipeViewSet, TagViewSet, RatingViewSet, CommentViewSet, IngredientViewSet
-from users.views import AppUpdateCheckView, AppUpdateDismissView, AppUpdateStatusView, AppVersionView, ChangePasswordView, DatabaseExportView, DatabaseImportView, ExtractionSettingsView, UserRegisterView, UserDetailView, VoskModelUploadView
+from users.views import AppConfigView, AppUpdateCheckView, AppUpdateDismissView, AppUpdateStatusView, AppVersionView, ChangePasswordView, DatabaseExportView, DatabaseImportView, ExtractionSettingsView, ModeAwareTokenObtainPairView, ModeAwareTokenRefreshView, UserRegisterView, UserDetailView, VoskModelUploadView
 
 
 router = DefaultRouter()
@@ -36,9 +35,10 @@ urlpatterns = [
     path('api/', include(router.urls)),
 
     # auth path
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/token/', ModeAwareTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/refresh/', ModeAwareTokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/register/', UserRegisterView.as_view(), name='auth_register'),
+    path('api/app/config/', AppConfigView.as_view(), name='app_config'),
     path('api/app/version/', AppVersionView.as_view(), name='app_version'),
     path('api/app/update-status/', AppUpdateStatusView.as_view(), name='app_update_status'),
     path('api/app/update-status/check/', AppUpdateCheckView.as_view(), name='app_update_check'),
