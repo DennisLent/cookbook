@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types src/generator.test.ts"
   },
   "dependencies": {
     "jszip": "^3.10.1",

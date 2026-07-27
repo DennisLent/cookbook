@@ -34,6 +34,9 @@ const normalizeOriginUrl = (rawValue: string): string => {
   const candidate =
     trimmed.includes("://") ? trimmed : `https://${trimmed}`;
   const url = new URL(candidate);
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error("Only HTTP and HTTPS URLs are supported.");
+  }
   return `${url.protocol}//${url.host}`;
 };
 
@@ -42,17 +45,99 @@ const extractHost = (rawValue: string): string => {
   return new URL(origin).hostname || "localhost";
 };
 
+export const validateWizardValues = (values: WizardValues): string[] => {
+  const errors: string[] = [];
+  const singleLineFields: Array<[string, string]> = [
+    ["Allowed hosts", values.allowedHosts],
+    ["Application version", values.emmaVersion],
+    ["Docker Hub namespace", values.dockerhubNamespace],
+    ["Update repository", values.updateRepository],
+    ["PostgreSQL database name", values.postgresDb],
+    ["PostgreSQL username", values.postgresUser],
+    ["PostgreSQL password", values.postgresPassword],
+    ["Administrator username", values.djangoSuperuserUsername],
+    ["Administrator password", values.djangoSuperuserPassword],
+    ["Django secret key", values.secretKey],
+    ["Ollama model", values.ollamaDefaultModel],
+  ];
+
+  try {
+    normalizeOriginUrl(values.publicAppUrl);
+  } catch {
+    errors.push("Enter a valid HTTP or HTTPS public app URL.");
+  }
+  if (!values.secretKey.trim()) errors.push("Generate a Django secret key.");
+  if (!values.postgresDb.trim()) errors.push("Enter a PostgreSQL database name.");
+  if (!values.postgresUser.trim()) errors.push("Enter a PostgreSQL username.");
+  if (!values.postgresPassword) errors.push("Enter a PostgreSQL password.");
+  if (values.appMode === "multi_user") {
+    if (!values.djangoSuperuserUsername.trim()) errors.push("Enter an administrator username.");
+    if (!values.djangoSuperuserPassword) errors.push("Enter an administrator password.");
+  }
+  if (values.appMode === "multi_user" && values.authProvider === "keycloak") {
+    if (!values.keycloakUrl.trim()) errors.push("Enter the Keycloak URL.");
+    else {
+      try {
+        normalizeOriginUrl(values.keycloakUrl);
+      } catch {
+        errors.push("Enter a valid HTTP or HTTPS Keycloak URL.");
+      }
+    }
+    if (!values.keycloakRealm.trim()) errors.push("Enter the Keycloak realm.");
+    if (!values.keycloakClientId.trim()) errors.push("Enter the Keycloak client ID.");
+    singleLineFields.push(
+      ["Keycloak URL", values.keycloakUrl],
+      ["Keycloak realm", values.keycloakRealm],
+      ["Keycloak client ID", values.keycloakClientId],
+      ["Keycloak audience", values.keycloakAudience],
+      ["Keycloak administrator role", values.keycloakAdminRole],
+    );
+  }
+  singleLineFields.forEach(([label, value]) => {
+    if (/[\r\n]/.test(value)) errors.push(`${label} must be on one line.`);
+  });
+  return errors;
+};
+
 const buildEnvFile = (values: WizardValues) => {
   const publicAppUrl = normalizeOriginUrl(values.publicAppUrl);
   const publicHost = extractHost(values.publicAppUrl);
+  const keycloakUrl =
+    values.appMode === "multi_user" && values.authProvider === "keycloak"
+      ? normalizeOriginUrl(values.keycloakUrl)
+      : values.keycloakUrl.replace(/\/+$/, "");
   const appUpdateEnabled = values.updateRepository.trim() ? "True" : "False";
   const backendImage = `${values.dockerhubNamespace}/emma-cookbook-backend`;
   const frontendImage = `${values.dockerhubNamespace}/emma-cookbook-frontend`;
-  const keycloakIssuer = `${values.keycloakUrl}/realms/${values.keycloakRealm}`;
+  const keycloakIssuer = `${keycloakUrl}/realms/${values.keycloakRealm}`;
   const keycloakJwksUrl = `${keycloakIssuer}/protocol/openid-connect/certs`;
   const ollamaHost = values.runOllamaInDocker
     ? "http://ollama:11434"
     : "http://host.docker.internal:11434";
+  const authenticationSettings = values.appMode === "single_user"
+    ? `APP_MODE=single_user
+AUTH_PROVIDER=jwt
+
+DJANGO_SUPERUSER_USERNAME=
+DJANGO_SUPERUSER_PASSWORD=`
+    : values.authProvider === "keycloak"
+      ? `APP_MODE=multi_user
+AUTH_PROVIDER=keycloak
+KEYCLOAK_REALM=${values.keycloakRealm}
+KEYCLOAK_URL=${keycloakUrl}
+KEYCLOAK_ISSUER=${keycloakIssuer}
+KEYCLOAK_CLIENT_ID=${values.keycloakClientId}
+KEYCLOAK_AUDIENCE=${values.keycloakAudience}
+KEYCLOAK_JWKS_URL=${keycloakJwksUrl}
+KEYCLOAK_ADMIN_ROLE=${values.keycloakAdminRole}
+
+DJANGO_SUPERUSER_USERNAME=${values.djangoSuperuserUsername}
+DJANGO_SUPERUSER_PASSWORD=${values.djangoSuperuserPassword}`
+      : `APP_MODE=multi_user
+AUTH_PROVIDER=jwt
+
+DJANGO_SUPERUSER_USERNAME=${values.djangoSuperuserUsername}
+DJANGO_SUPERUSER_PASSWORD=${values.djangoSuperuserPassword}`;
 
   return `APP_NAME=emma-cookbook
 APP_VERSION=${values.emmaVersion}
@@ -80,18 +165,7 @@ POSTGRES_PASSWORD=${values.postgresPassword}
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
 
-APP_MODE=${values.appMode}
-AUTH_PROVIDER=${values.authProvider}
-KEYCLOAK_REALM=${values.keycloakRealm}
-KEYCLOAK_URL=${values.keycloakUrl}
-KEYCLOAK_ISSUER=${keycloakIssuer}
-KEYCLOAK_CLIENT_ID=${values.keycloakClientId}
-KEYCLOAK_AUDIENCE=${values.keycloakAudience}
-KEYCLOAK_JWKS_URL=${keycloakJwksUrl}
-KEYCLOAK_ADMIN_ROLE=${values.keycloakAdminRole}
-
-DJANGO_SUPERUSER_USERNAME=${values.djangoSuperuserUsername}
-DJANGO_SUPERUSER_PASSWORD=${values.djangoSuperuserPassword}
+${authenticationSettings}
 
 SEED_INTERNAL_DATA=${values.seedInternalData ? "1" : "0"}
 
@@ -275,11 +349,16 @@ const buildReadme = (values: WizardValues) => {
     "",
     "## Notes",
     "",
-    `- Default admin username: ${values.djangoSuperuserUsername}`,
+    `- Application mode: ${values.appMode === "single_user" ? "single-user shared owner" : "multi-user"}`,
+    values.appMode === "multi_user"
+      ? `- Default admin username: ${values.djangoSuperuserUsername}`
+      : "- No local Django administrator is generated by this package.",
     `- Starter recipe data: ${values.seedInternalData ? "enabled" : "disabled"}`,
     `- Ollama inside Docker: ${values.runOllamaInDocker ? "enabled" : "disabled"}`,
     `- Vosk model source from the wizard: ${values.voskSource || DEFAULT_VOSK_URL}`,
-    "- The package creates the app admin automatically on first run.",
+    values.appMode === "multi_user"
+      ? "- The package creates the app admin automatically on first run."
+      : "- Account bootstrap follows the selected application/authentication mode.",
     "- If you want speech-powered imports, place an extracted Vosk model inside `docker-data/vosk/` before starting the stack.",
     "- If Instagram or YouTube imports need login state, place a Netscape-format cookie export at `docker-data/import-cookies/cookies.txt` before starting the stack.",
     "- If you want local TLS for a hostname like `cookbook.home.arpa`, set `FRONTEND_HTTP_BIND=127.0.0.1:8080` and start Compose with both `docker-compose.yml` and `docker-compose.caddy.yml`, then trust Caddy's local root CA on your client devices.",

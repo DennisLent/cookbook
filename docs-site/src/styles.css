@@ -7,6 +7,9 @@
   --accent: #0969da;
   --accent-soft: #ddf4ff;
   --surface: #f6f8fa;
+  --surface-strong: #eef4ff;
+  --success: #1a7f37;
+  --shadow: 0 16px 44px rgba(31, 35, 40, 0.08);
 }
 
 * {
@@ -70,8 +73,12 @@ pre {
 }
 
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   border-bottom: 1px solid var(--border);
-  background: var(--background);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
 }
 
 .site-header .container {
@@ -83,6 +90,7 @@ pre {
   color: var(--foreground);
   font-size: 1.1rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .page-layout {
@@ -123,6 +131,7 @@ pre {
 }
 
 .document {
+  min-width: 0;
   padding-top: 2rem;
   padding-bottom: 3rem;
 }
@@ -183,28 +192,152 @@ code {
 }
 
 .wizard-block {
-  margin: 1.5rem 0;
-  padding: 1.25rem;
+  margin: 2rem 0;
+  padding: clamp(1.25rem, 3vw, 2rem);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  border-left: 4px solid var(--accent);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--surface) 100%);
+  box-shadow: var(--shadow);
+}
+
+.wizard-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.wizard-heading h3 {
+  margin: 0.25rem 0 0.5rem;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+}
+
+.wizard-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.privacy-badge {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid #aceebb;
+  border-radius: 999px;
+  background: #dafbe1;
+  color: var(--success);
+  font-size: 0.78rem;
+  font-weight: 650;
 }
 
 .wizard-form {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
   margin: 1rem 0 1.5rem;
 }
 
-.wizard-form label {
+.wizard-form label:not(.choice-card) {
   display: grid;
   gap: 0.4rem;
 }
 
-.wizard-form label > span {
+.wizard-form label > span,
+.wizard-form label > strong {
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.wizard-form small,
+.question-help {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.question-group {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+}
+
+.question-group legend {
+  padding: 0 0.45rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.question-group legend > span {
+  display: inline-grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  margin-right: 0.45rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.question-help {
+  margin: -0.35rem 0 0;
+}
+
+.nested-group {
+  margin-left: 1.5rem;
+  border-left: 3px solid var(--accent);
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.choice-card {
+  position: relative;
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+  cursor: pointer;
+}
+
+.choice-card:hover {
+  border-color: #8c959f;
+}
+
+.choice-card.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.choice-card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.choice-card strong {
+  color: var(--foreground);
+}
+
+.choice-card span {
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 input,
@@ -227,6 +360,7 @@ select:focus {
 
 .inline-control {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
 }
 
@@ -255,7 +389,10 @@ select:focus {
   display: flex;
   gap: 0.6rem;
   align-items: center;
-  padding: 0.1rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .checkbox-row input {
@@ -266,20 +403,85 @@ select:focus {
 }
 
 .checkbox-row label {
-  display: inline;
+  display: grid;
+  gap: 0.15rem;
   margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
 }
 
-.wizard-form .checkbox-row > label > span {
-  font-size: inherit;
-  font-weight: inherit;
+.checkbox-row label > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 400;
 }
 
 .form-error {
   margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ff8182;
+  border-radius: 8px;
+  background: #ffebe9;
   color: #cf222e;
+}
+
+.advanced-settings,
+.env-preview {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+}
+
+.advanced-settings > summary,
+.env-preview > summary {
+  padding: 0.9rem 1rem;
+  list-style-position: inside;
+}
+
+.advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 0 1rem 1rem;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.wizard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.env-preview {
+  margin-top: 1.5rem;
+  overflow: hidden;
+}
+
+.env-preview summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.env-preview pre {
+  max-height: 32rem;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.summary-hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
 }
 
 details {
@@ -312,5 +514,30 @@ summary {
 
   h1 {
     font-size: 1.75rem;
+  }
+
+  .wizard-heading {
+    display: grid;
+  }
+
+  .privacy-badge {
+    width: fit-content;
+  }
+
+  .choice-grid,
+  .advanced-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nested-group {
+    margin-left: 0;
+  }
+
+  .inline-control {
+    grid-template-columns: 1fr;
+  }
+
+  .wizard-actions > button {
+    width: 100%;
   }
 }
