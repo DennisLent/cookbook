@@ -127,6 +127,13 @@ class VoskModelUploadApiTests(APITestCase):
     @override_settings(VOSK_MODEL_PATH="/tmp/test-vosk-model")
     def test_superuser_can_upload_and_replace_vosk_model(self):
         self.client.force_authenticate(self.admin)
+        ExtractionSettings.objects.update_or_create(
+            pk=1,
+            defaults={
+                "ollama_model": "llama3.2",
+                "vosk_model_path": "/tmp/test-vosk-model",
+            },
+        )
 
         archive = BytesIO()
         with zipfile.ZipFile(archive, "w") as zf:
@@ -140,7 +147,7 @@ class VoskModelUploadApiTests(APITestCase):
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(Path("/tmp/test-vosk-model/README").exists())
         self.assertTrue(Path("/tmp/test-vosk-model/conf/model.conf").exists())
         self.assertEqual(ExtractionSettings.get_solo().vosk_model_path, "/tmp/test-vosk-model")

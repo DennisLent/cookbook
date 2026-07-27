@@ -1,0 +1,26 @@
+services:
+  db:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  backend:
+    ports:
+      - "8000:8000"
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  frontend:
+    ports:
+      - "${FRONTEND_HTTP_BIND:-8080}:80"
+
+volumes:
+  ollama_data:

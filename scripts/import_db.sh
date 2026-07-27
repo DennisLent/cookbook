@@ -5,7 +5,9 @@ IFS=$'\n\t'
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/backend"
-ENV_FILE="${ENV_FILE:-${ROOT_DIR}/dev_env}"
+# shellcheck source=scripts/lib/compose.sh
+source "${ROOT_DIR}/scripts/lib/compose.sh"
+ENV_FILE="${ENV_FILE_PATH}"
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: ./scripts/import_db.sh <backup-file>" >&2
@@ -34,14 +36,14 @@ if [[ "${DATABASE_ENGINE}" == "sqlite" ]]; then
   exit 0
 fi
 
-docker compose exec -T db psql \
+compose_run exec -T db psql \
   -U "${POSTGRES_USER:-cookbook}" \
   -d "${POSTGRES_DB:-cookbook}" \
   -v ON_ERROR_STOP=1 \
   -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" \
   >/dev/null
 
-docker compose exec -T db psql \
+compose_run exec -T db psql \
   -U "${POSTGRES_USER:-cookbook}" \
   -d "${POSTGRES_DB:-cookbook}" \
   -v ON_ERROR_STOP=1 \

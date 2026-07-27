@@ -1,0 +1,20 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 60%
+        threshold: 1%
+      backend:
+        flags:
+          - backend
+        target: 70%
+        threshold: 1%
+      frontend:
+        flags:
+          - frontend
+        target: 45%
+        threshold: 1%
+
+flag_management:
+  default_rules:
+    carryforward: false

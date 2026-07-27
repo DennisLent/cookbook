@@ -32,6 +32,24 @@ export default defineConfig(() => ({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "cobertura"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/test/**",
+        "src/components/ui/**",
+        "src/data/mockRecipes.ts",
+        "src/types/**",
+        "src/main.tsx",
+        "src/vite-env.d.ts",
+        "src/hooks/use-mobile.tsx",
+        "src/hooks/use-toast.ts",
+      ],
+      thresholds: {
+        statements: 45,
+        branches: 65,
+        functions: 35,
+        lines: 45,
+      },
     },
   },
 }));

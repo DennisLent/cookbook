@@ -50,7 +50,7 @@ export const setupPage = {
   ],
   dockerCommand: "./scripts/setup_docker_production.sh",
   dockerDescription:
-    "That script helps you create a production env file, prepare the Vosk model, optionally import an existing backup, optionally start Ollama, bootstrap the Django admin user, and start the Docker stack.",
+    "That script performs preflight checks, generates secrets, explicitly initializes the selected application mode, supports direct, bundled-Caddy, and external-proxy deployments, waits for health checks, and verifies the frontend and API.",
   envIntro:
     "The repo expects an env file such as `.env.production` for Docker-based deployments. The most important values to review are:",
   envKeys: [
@@ -75,20 +75,20 @@ export const setupPage = {
     "VOSK_MODEL_PATH",
   ],
   seedParagraph:
-    "If `SEED_INTERNAL_DATA=1`, container startup runs `seed_internal_data` after migrations. That command creates or updates the configured superuser and seeds the internal starter recipe dataset for that account. If recipe data already exists, it skips reseeding unless you run the command manually with `--force` or `--reset`.",
+    "Seed data is owned by the configured administrator in multi-user mode and by the passwordless shared owner in single-user mode.",
   manualParagraph:
     "If you prefer managing things yourself after the first setup, you can use Docker Compose directly:",
   composeCommands: [
-    "ENV_FILE=.env.production docker compose pull",
-    "ENV_FILE=.env.production docker compose up -d",
+    "docker compose pull",
+    "docker compose up -d",
   ],
   rebuildParagraph:
     "If your deployment uses locally built images instead of published ones, rebuild with:",
-  rebuildCommand: "ENV_FILE=.env.production docker compose up --build -d",
+  rebuildCommand: "docker compose up --build -d",
   updateParagraph:
     "To update a deployment that uses published release images, run:",
   updateCommand:
-    "ENV_FILE=.env.production ./scripts/update_docker_production.sh v1.2.3",
+    "./scripts/update_docker_production.sh v1.2.3",
 };
 
 export const adminPage = {
@@ -176,7 +176,7 @@ export const adminPage = {
     "Run the update command from the host:",
   ],
   updateCommand:
-    "ENV_FILE=.env.production ./scripts/update_docker_production.sh <tag>",
+    "./scripts/update_docker_production.sh <tag>",
   updateSummary:
     "Only a superuser can see the update notice in the app, but actual deployment changes always require host-level Docker access.",
 };

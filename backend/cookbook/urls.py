@@ -3,6 +3,8 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
+from django.db import connection
+from django.http import JsonResponse
 from django.conf.urls.static import static
 from django.shortcuts import redirect
 from django.views.static import serve
@@ -25,8 +27,17 @@ router.register(r'ingredients', IngredientViewSet)
 def root_redirect(_request):
     return redirect('/admin/', permanent=False)
 
+
+def health(_request):
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+    return JsonResponse({"status": "ok"})
+
+
 urlpatterns = [
     path('', root_redirect, name='root_redirect'),
+    path('api/health/', health, name='health'),
 
     # admin path
     path('admin/', admin.site.urls),

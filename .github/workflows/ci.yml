@@ -30,9 +30,11 @@ jobs:
       - name: Run migrations
         run: python manage.py migrate --noinput
       - name: Run backend tests
-        run: coverage run --source=cookbook,recipes,users manage.py test users.tests.test_tag_inference users.tests.test_app_version_api users.tests.test_app_update_api users.tests.test_change_password_api recipes.tests_contract
+        run: coverage run --source=cookbook,recipes,users manage.py test users.tests recipes.tests recipes.tests_contract recipes.tests_single_user
       - name: Build backend coverage report
-        run: coverage xml -o coverage.xml
+        run: |
+          coverage report --fail-under=70
+          coverage xml -o coverage.xml
       - name: Upload backend coverage to Codecov
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v5

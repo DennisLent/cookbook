@@ -8,17 +8,10 @@ while ! nc -z "$POSTGRES_HOST" "$POSTGRES_PORT"; do
 done
 
 if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
-  INSTANCE_MODE_ARGS=""
-  # If the last pre-feature user migration was already applied before this
-  # process started, this is an upgraded account database, even when empty.
-  if python manage.py showmigrations users 2>/dev/null | grep -q '\[X\] 0006_appupdatestatus'; then
-    INSTANCE_MODE_ARGS="--existing-installation"
-  fi
   python manage.py migrate
-  # Persist and validate the security mode before any bootstrap account is
-  # created. This distinguishes a genuinely fresh single-user installation
-  # from an existing account database configured incorrectly.
-  python manage.py initialize_instance_mode ${INSTANCE_MODE_ARGS}
+  # Installation intent is established explicitly by setup/import workflows.
+  # Normal service startup only validates the persisted security mode.
+  python manage.py initialize_instance_mode --validate-only
 fi
 
 if [ "${RUN_MIGRATIONS:-1}" = "1" ] && [ "${APP_MODE:-multi_user}" = "multi_user" ] && [ -n "${DJANGO_SUPERUSER_USERNAME:-}" ] && [ -n "${DJANGO_SUPERUSER_PASSWORD:-}" ]; then

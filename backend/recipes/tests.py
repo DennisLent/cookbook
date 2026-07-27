@@ -104,14 +104,15 @@ class RecipeImportJobApiTests(APITestCase):
     @patch("recipes.extraction.utils.validate_public_video_url", return_value="instagram")
     @patch("recipes.tasks.process_recipe_import_job.delay")
     def test_create_recipe_import_job_waits_until_transaction_commit(self, delay_mock, validate_mock):
-        with transaction.atomic():
-            response = self.client.post(
-                reverse("recipe-import-job-list"),
-                {"url": "https://www.instagram.com/reel/abc123/"},
-                format="json",
-            )
-            self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-            delay_mock.assert_not_called()
+        with self.captureOnCommitCallbacks(execute=True):
+            with transaction.atomic():
+                response = self.client.post(
+                    reverse("recipe-import-job-list"),
+                    {"url": "https://www.instagram.com/reel/abc123/"},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+                delay_mock.assert_not_called()
 
         job = RecipeImportJob.objects.get()
         delay_mock.assert_called_once_with(job.pk)
@@ -273,6 +274,7 @@ class RecipeImportJobTaskTests(APITestCase):
             source_url="https://www.instagram.com/reel/video-only/",
             platform=RecipeImportJob.PLATFORM_INSTAGRAM,
             download_only=True,
+            persist_media=True,
         )
 
         def fake_download(_url, target_dir):
@@ -303,13 +305,10 @@ class RecipeImportJobTaskTests(APITestCase):
         from recipes.tasks import process_recipe_import_job
 
         task = process_recipe_import_job
-        request = Mock(id="celery-task-id")
         retry = Mock(side_effect=Retry())
-        task.request = request
-        task.retry = retry
-
-        with self.assertRaises(Retry):
-            task.run(999999)
+        with patch.object(task, "retry", retry):
+            with self.assertRaises(Retry):
+                task.run(999999)
 
         retry.assert_called_once()
         _, kwargs = retry.call_args

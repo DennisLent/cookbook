@@ -5,7 +5,9 @@ IFS=$'\n\t'
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/backend"
-ENV_FILE="${ENV_FILE:-${ROOT_DIR}/dev_env}"
+# shellcheck source=scripts/lib/compose.sh
+source "${ROOT_DIR}/scripts/lib/compose.sh"
+ENV_FILE="${ENV_FILE_PATH}"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
 if [[ -f "${ENV_FILE}" ]]; then
@@ -36,7 +38,7 @@ fi
 TARGET_PATH="${OUTPUT_PATH:-${ROOT_DIR}/backups/cookbook-${TIMESTAMP}.sql}"
 mkdir -p "$(dirname "${TARGET_PATH}")"
 
-docker compose exec -T db pg_dump \
+compose_run exec -T db pg_dump \
   -U "${POSTGRES_USER:-cookbook}" \
   -d "${POSTGRES_DB:-cookbook}" \
   --no-owner \

@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from recipes.models import Recipe
 
@@ -62,6 +62,20 @@ class ManagementCommandTests(TestCase):
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
         mock_populate.assert_called_once_with(username="admin", stdout=mock_populate.call_args.kwargs["stdout"], reset=True)
+
+    @override_settings(APP_MODE="single_user")
+    @patch("users.management.commands.seed_internal_data.populate_database_for_user", return_value=["recipe"])
+    def test_single_user_seed_uses_shared_owner_without_creating_account(self, mock_populate):
+        call_command("seed_internal_data", "--username", "", "--password", "", "--reset")
+
+        owner = get_user_model().objects.get(username="__single_user__")
+        self.assertFalse(owner.has_usable_password())
+        self.assertEqual(get_user_model().objects.count(), 1)
+        mock_populate.assert_called_once_with(
+            username="__single_user__",
+            stdout=mock_populate.call_args.kwargs["stdout"],
+            reset=True,
+        )
 
     @patch("users.management.commands.seed_internal_data.populate_database_for_user")
     def test_seed_internal_data_skips_existing_recipes_without_force(self, mock_populate):

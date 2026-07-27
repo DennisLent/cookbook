@@ -101,7 +101,7 @@ For deployment updates:
 3. Run the update command from the host:
 
 ```sh
-ENV_FILE=.env.production ./scripts/update_docker_production.sh <tag>
+./scripts/update_docker_production.sh <tag>
 ```
 
 Only a superuser can see the update notice in the app, but actual deployment changes always require host-level Docker access.

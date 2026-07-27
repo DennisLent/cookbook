@@ -10,7 +10,11 @@ from .models import InstanceConfiguration, User
 SINGLE_USER_USERNAME = "__single_user__"
 
 
-def get_instance_configuration(*, force_existing_installation=False) -> InstanceConfiguration:
+def get_instance_configuration(
+    *,
+    initialization_intent=None,
+    force_existing_installation=False,
+) -> InstanceConfiguration:
     """Return mode metadata, initializing a new database exactly once.
 
     Existing databases with user data are conservatively classified as
@@ -18,15 +22,29 @@ def get_instance_configuration(*, force_existing_installation=False) -> Instance
     database fail closed instead of collapsing its ownership boundary.
     """
 
+    if force_existing_installation:
+        initialization_intent = "existing"
+    if initialization_intent not in {None, "fresh", "existing", "validate"}:
+        raise ValueError("Unknown instance-mode initialization intent.")
+
     requested_mode = settings.APP_MODE
     try:
         with transaction.atomic():
             configuration = InstanceConfiguration.objects.select_for_update().filter(pk=1).first()
             if configuration is None:
                 has_existing_users = User.objects.exclude(username=SINGLE_USER_USERNAME).exists()
+                if initialization_intent == "validate":
+                    raise ImproperlyConfigured(
+                        "Instance mode has not been initialized. Run initialize_instance_mode "
+                        "with --fresh-installation or --existing-installation."
+                    )
+                if initialization_intent == "fresh" and has_existing_users:
+                    raise ImproperlyConfigured(
+                        "A fresh installation cannot be initialized because user accounts already exist."
+                    )
                 initial_mode = (
                     InstanceConfiguration.MODE_MULTI_USER
-                    if force_existing_installation or has_existing_users
+                    if initialization_intent == "existing" or has_existing_users
                     else requested_mode
                 )
                 # A fixed primary key turns singleton initialization into a

@@ -44,6 +44,18 @@ test("built-in multi-user output includes the bootstrap administrator", () => {
   assert.doesNotMatch(envFile, /^KEYCLOAK_/m);
 });
 
+test("generated Compose initializes mode explicitly and exposes only the frontend", () => {
+  const { composeFile } = createPackageFiles(validValues());
+
+  assert.match(composeFile, /initialize_instance_mode --fresh-installation/);
+  assert.match(composeFile, /service_completed_successfully/);
+  assert.match(composeFile, /FRONTEND_HTTP_BIND:-127\.0\.0\.1:8080/);
+  assert.doesNotMatch(composeFile, /"5432:5432"/);
+  assert.doesNotMatch(composeFile, /"6379:6379"/);
+  assert.doesNotMatch(composeFile, /"8000:8000"/);
+  assert.doesNotMatch(composeFile, /"11434:11434"/);
+});
+
 test("Keycloak output includes OIDC settings and the bootstrap administrator", () => {
   const values = validValues({ authProvider: "keycloak" });
 

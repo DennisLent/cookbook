@@ -131,19 +131,17 @@ export function RecipesProvider({ children }: { children: ReactNode }) {
 
   const refreshRecipe = useCallback(async (id: string) => {
     const recipe = normalizeRecipe(await apiRequest<Recipe>(`/recipes/${id}/`));
-    let inserted = false;
+    const exists = recipes.some((entry) => entry.id === id);
     setRecipes((prev) => {
-      const exists = prev.some((entry) => entry.id === id);
       if (!exists) {
-        inserted = true;
         return [recipe, ...prev];
       }
       return prev.map((entry) => (entry.id === id ? recipe : entry));
     });
-    if (inserted) {
+    if (!exists) {
       setTotalRecipes((prev) => prev + 1);
     }
-  }, []);
+  }, [recipes]);
 
   const loadMoreRecipes = useCallback(async () => {
     if (!nextPath || isLoadingMore) return;

@@ -192,7 +192,7 @@ VOSK_MODEL_PATH=/app/vosk-model
 OLLAMA_DEFAULT_MODEL=${values.ollamaDefaultModel}
 OLLAMA_HOST=${ollamaHost}
 PUBLIC_HOST=${publicHost}
-FRONTEND_HTTP_BIND=80
+FRONTEND_HTTP_BIND=127.0.0.1:8080
 `;
 };
 
@@ -203,27 +203,56 @@ const buildComposeFile = (values: WizardValues) => {
     image: ollama/ollama:latest
     volumes:
       - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 `
     : "";
 
   const ollamaVolume = values.runOllamaInDocker ? "\n  ollama_data:" : "";
 
-  return `services:
+  return `name: emma-cookbook
+
+services:
   db:
     image: postgres:15
     env_file:
       - .env.production
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \\"$\${POSTGRES_USER}\\" -d \\"$\${POSTGRES_DB}\\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  initialize:
+    image: \${EMMA_BACKEND_IMAGE}:\${EMMA_VERSION}
+    entrypoint: /bin/bash
+    command:
+      - -lc
+      - >-
+        python manage.py migrate --noinput &&
+        python manage.py initialize_instance_mode --fresh-installation &&
+        if [ "$\${APP_MODE}" = single_user ] && [ "$\${SEED_INTERNAL_DATA:-0}" = 1 ];
+        then python manage.py seed_internal_data --reset; fi
+    env_file:
+      - .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   backend:
     image: \${EMMA_BACKEND_IMAGE}:\${EMMA_VERSION}
@@ -232,8 +261,10 @@ const buildComposeFile = (values: WizardValues) => {
     environment:
       RUN_MIGRATIONS: "1"
     depends_on:
-      - db
-      - redis
+      initialize:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
@@ -241,8 +272,12 @@ const buildComposeFile = (values: WizardValues) => {
       - ./docker-data/bootstrap:/bootstrap
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    ports:
-      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
   worker:
     image: \${EMMA_BACKEND_IMAGE}:\${EMMA_VERSION}
@@ -252,8 +287,8 @@ const buildComposeFile = (values: WizardValues) => {
     environment:
       RUN_MIGRATIONS: "0"
     depends_on:
-      - db
-      - redis
+      backend:
+        condition: service_healthy
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
@@ -270,8 +305,8 @@ const buildComposeFile = (values: WizardValues) => {
     environment:
       RUN_MIGRATIONS: "0"
     depends_on:
-      - db
-      - redis
+      backend:
+        condition: service_healthy
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
@@ -284,9 +319,15 @@ const buildComposeFile = (values: WizardValues) => {
     container_name: emma-cookbook
     image: \${EMMA_FRONTEND_IMAGE}:\${EMMA_VERSION}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
-      - "\${FRONTEND_HTTP_BIND:-80}:80"
+      - "\${FRONTEND_HTTP_BIND:-127.0.0.1:8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
 volumes:
   postgres_data:${ollamaVolume}
@@ -299,7 +340,8 @@ const buildCaddyComposeFile = () => `services:
     env_file:
       - .env.production
     depends_on:
-      - frontend
+      frontend:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"

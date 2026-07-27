@@ -41,65 +41,81 @@ That launcher reads from `dev_env` by default, starts the Django backend on `htt
 
 SQLite is the recommended default for day-to-day development because it is quick to reset and avoids Docker or PostgreSQL state drift while you are iterating.
 
-## Docker Setup
+## Docker production setup
 
-If you want a more production-style deployment, use Docker. In that setup, emma-cookbook runs with PostgreSQL, Redis, the Django backend, Celery worker and beat services, and the frontend container.
+The supported production path runs PostgreSQL, Redis, Django, Celery worker and beat, and the frontend in Docker. PostgreSQL, Redis, Django, and Ollama are internal-only by default; only the frontend is published.
 
-The easiest path is the interactive setup script:
+Run the interactive installer:
 
 ```sh
 ./scripts/setup_docker_production.sh
 ```
 
-That script helps you create a production env file, prepare the Vosk model, optionally import an existing backup, optionally start Ollama, bootstrap the Django admin user, and start the Docker stack.
+It performs preflight checks, generates the Django and PostgreSQL secrets, initializes the irreversible application mode explicitly, waits for container health checks, and verifies the frontend and API before reporting success. Existing `emma-cookbook` containers or volumes are refused unless setup is deliberately resumed with `--allow-existing`.
 
-The repo expects an env file such as `.env.production` for Docker-based deployments. The most important values to review are:
-
-- `SECRET_KEY`
-- `DEBUG`
-- `ALLOWED_HOSTS`
-- `CORS_ALLOWED_ORIGINS`
-- `POSTGRES_DB`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
-- `POSTGRES_HOST`
-- `POSTGRES_PORT`
-- `EMMA_BACKEND_IMAGE`
-- `EMMA_FRONTEND_IMAGE`
-- `EMMA_VERSION`
-- `APP_UPDATE_REPOSITORY`
-- `DJANGO_SUPERUSER_USERNAME`
-- `DJANGO_SUPERUSER_PASSWORD`
-- `SEED_INTERNAL_DATA`
-- `OLLAMA_HOST`
-- `OLLAMA_DEFAULT_MODEL`
-- `VOSK_MODEL_PATH`
-- `RECIPE_IMPORT_COOKIE_FILE`
-- `PUBLIC_HOST`
-- `FRONTEND_HTTP_BIND`
-
-If `SEED_INTERNAL_DATA=1`, container startup runs `seed_internal_data` after migrations. That command creates or updates the configured superuser and seeds the internal starter recipe dataset for that account. If recipe data already exists, it skips reseeding unless you run the command manually with `--force` or `--reset`.
-
-If you prefer managing things yourself after the first setup, you can use Docker Compose directly:
+For a reproducible non-interactive installation:
 
 ```sh
-ENV_FILE=.env.production docker compose pull
-ENV_FILE=.env.production docker compose up -d
+./scripts/setup_docker_production.sh \
+  --non-interactive \
+  --app-mode single_user \
+  --public-url https://example-domain.com \
+  --proxy external \
+  --frontend-bind 127.0.0.1:8082 \
+  --ollama container \
+  --vosk default \
+  --source registry \
+  --version v1.1.0
 ```
 
-If your deployment uses locally built images instead of published ones, rebuild with:
+The installer writes `.env.production`, a non-secret `.env` for routine Compose commands, and `.emma-compose.env` for lifecycle scripts. Afterwards these work without exporting `ENV_FILE` or repeating Compose overrides:
 
 ```sh
-ENV_FILE=.env.production docker compose up --build -d
+docker compose ps
+docker compose logs backend
+docker compose up -d
+docker compose down
+./scripts/update_docker_production.sh v1.2.3
+./scripts/export_db.sh
+./scripts/import_db.sh backups/cookbook.sql
 ```
 
-If Instagram or YouTube downloads need an authenticated session on the server, export a Netscape-format cookies file and place it at the path named by `RECIPE_IMPORT_COOKIE_FILE`. In the default Docker setup that is `docker-data/import-cookies/cookies.txt`, mounted read-only into the backend and Celery worker containers.
+Use `docker-compose.dev.yml` when host access to PostgreSQL, Redis, Django, or Ollama is needed during development:
+
+```sh
+ENV_FILE=dev_env docker compose -f docker-compose.yml -f docker-compose.ollama.yml -f docker-compose.dev.yml up -d
+```
+
+If Instagram or YouTube downloads need an authenticated session, place a Netscape-format cookie export at `docker-data/import-cookies/cookies.txt`.
+
+### Proxy modes
+
+The installer offers three modes:
+
+- `direct`: publishes the frontend directly, defaulting to `0.0.0.0:80`.
+- `bundled`: starts the included Caddy service and keeps the frontend on `127.0.0.1:8080`.
+- `external`: does not start Caddy and defaults the frontend to `127.0.0.1:8082`.
+
+For external Caddy:
+
+```caddyfile
+cookbook.home.arpa {
+    tls internal
+    reverse_proxy 127.0.0.1:8082
+}
+```
+
+The generated public URL and frontend binding may use different ports; clients use the public URL while the external proxy uses the loopback binding.
 
 ## Single-user and multi-user mode
 
-Set `APP_MODE=multi_user` (the default) to require individual accounts for writes, or use `APP_MODE=single_user` on a **new database** to run with one shared owner and no login screen. “Single-user” means one shared identity, not one simultaneous visitor: several people, browsers, and devices can use it together. Favorites, collections, notes, ratings, and preferences are shared. Recipe edits use revision checks so a stale editor must refresh instead of overwriting somebody else’s changes. Single-user mode is not an access-control boundary: every person or device that can reach the application can change its data and instance settings. Put it behind a trusted LAN, VPN, or authenticated reverse proxy.
+Set `APP_MODE=multi_user` (the default) to require individual accounts for writes, or use `APP_MODE=single_user` on a new database to run with one shared owner and no login screen. “Single-user” means one shared identity, not one simultaneous visitor: several people, browsers, and devices can use it together. Favorites, collections, notes, ratings, and preferences are shared. Recipe edits use revision checks. 
+
+Single-user mode is not an access-control boundary: every person or device that can reach the application can change its data and instance settings. Put it behind a trusted LAN, VPN, or authenticated reverse proxy.
 
 The lifecycle is one-way. A single-user instance can be promoted to multi-user mode, but a database that has ever run in multi-user mode cannot be changed to single-user mode. This is enforced in database metadata, including after restores.
+
+Fresh setup calls `initialize_instance_mode --fresh-installation`; imports and upgrades call `--existing-installation`; ordinary backend starts use `--validate-only`. Migration history is never used to guess installation intent.
 
 To promote, stop frontend/backend/worker writes, take a database backup, create the destination account, then run:
 
@@ -110,22 +126,10 @@ python manage.py promote_to_multi_user USERNAME --confirm
 
 After the command succeeds, set `APP_MODE=multi_user` and restart the backend, worker, beat, and frontend stack together. There is no reverse command.
 
-If you want local HTTPS for a hostname such as `cookbook.home.arpa`, this repo includes an optional Caddy reverse-proxy layer with an internal CA:
+Bundled Caddy keeps the frontend on loopback HTTP while Caddy serves ports `80` and `443`. After first start, trust the generated root certificate on each client device from:
+
+To update a deployment that uses published release images:
 
 ```sh
-FRONTEND_HTTP_BIND=127.0.0.1:8080 ENV_FILE=.env.production docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
-```
-
-That keeps the frontend container on loopback HTTP while Caddy serves ports `80` and `443` for `PUBLIC_HOST`. After first start, trust the generated root certificate on each client device from:
-
-```text
-docker-data/caddy/data/caddy/pki/authorities/local/root.crt
-```
-
-Once that CA is trusted, `https://cookbook.home.arpa` should work cleanly and browsers are much more likely to resolve bare `cookbook.home.arpa` the way you expect.
-
-To update a deployment that uses published release images, run:
-
-```sh
-ENV_FILE=.env.production ./scripts/update_docker_production.sh v1.2.3
+./scripts/update_docker_production.sh v1.2.3
 ```

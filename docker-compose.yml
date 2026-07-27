@@ -1,17 +1,25 @@
+name: emma-cookbook
+
 services:
   db:
     image: postgres:15
     env_file:
-      - ${ENV_FILE:?Set ENV_FILE to an env file such as .env.production or dev_env}
+      - ${ENV_FILE:-.env.production}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   backend:
     image: ${EMMA_BACKEND_IMAGE:-local/emma-cookbook-backend}:${EMMA_VERSION:-dev}
@@ -22,12 +30,14 @@ services:
         APP_VERSION: ${EMMA_VERSION:-dev}
         APP_GIT_SHA: ${EMMA_GIT_SHA:-local}
     env_file:
-      - ${ENV_FILE:?Set ENV_FILE to an env file such as .env.production or dev_env}
+      - ${ENV_FILE:-.env.production}
     environment:
       RUN_MIGRATIONS: "1"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
@@ -35,8 +45,12 @@ services:
       - ./docker-data/bootstrap:/bootstrap
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    ports:
-      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
   worker:
     image: ${EMMA_BACKEND_IMAGE:-local/emma-cookbook-backend}:${EMMA_VERSION:-dev}
@@ -48,12 +62,16 @@ services:
         APP_GIT_SHA: ${EMMA_GIT_SHA:-local}
     command: celery -A cookbook worker -l info
     env_file:
-      - ${ENV_FILE:?Set ENV_FILE to an env file such as .env.production or dev_env}
+      - ${ENV_FILE:-.env.production}
     environment:
       RUN_MIGRATIONS: "0"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
@@ -72,12 +90,16 @@ services:
         APP_GIT_SHA: ${EMMA_GIT_SHA:-local}
     command: celery -A cookbook beat -l info
     env_file:
-      - ${ENV_FILE:?Set ENV_FILE to an env file such as .env.production or dev_env}
+      - ${ENV_FILE:-.env.production}
     environment:
       RUN_MIGRATIONS: "0"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     volumes:
       - ./backend/media:/app/media
       - ./docker-data/vosk:/app/vosk-model
@@ -85,13 +107,6 @@ services:
       - ./docker-data/bootstrap:/bootstrap
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
 
   frontend:
     container_name: emma-cookbook
@@ -103,10 +118,15 @@ services:
         APP_VERSION: ${EMMA_VERSION:-dev}
         APP_GIT_SHA: ${EMMA_GIT_SHA:-local}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
-      - "${FRONTEND_HTTP_BIND:-80}:80"
+      - "${FRONTEND_HTTP_BIND:-127.0.0.1:8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
 volumes:
   postgres_data:
-  ollama_data:

@@ -10,7 +10,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "APP_MODE=single_user DATABASE_ENGINE=sqlite SQLITE_DATABASE_PATH=/tmp/emma-cookbook-single-user-e2e.sqlite3 sh -c 'python3 manage.py migrate --noinput && python3 manage.py initialize_instance_mode && python3 manage.py runserver 127.0.0.1:8000'",
+        "APP_MODE=single_user DATABASE_ENGINE=sqlite SQLITE_DATABASE_PATH=/tmp/emma-cookbook-single-user-e2e.sqlite3 sh -c 'python3 manage.py migrate --noinput && python3 manage.py initialize_instance_mode --fresh-installation && python3 manage.py runserver 127.0.0.1:8000'",
       cwd: "../backend",
       port: 8000,
       reuseExistingServer: false,

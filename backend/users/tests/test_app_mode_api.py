@@ -127,7 +127,21 @@ class PromotionCommandTests(APITestCase):
 
     def test_pre_feature_empty_database_is_still_marked_multi_user(self):
         with self.assertRaises(ImproperlyConfigured):
-            get_instance_configuration(force_existing_installation=True)
+            get_instance_configuration(initialization_intent="existing")
         configuration = InstanceConfiguration.get_solo()
         self.assertEqual(configuration.mode, "multi_user")
         self.assertTrue(configuration.ever_multi_user)
+
+    def test_fresh_installation_is_initialized_as_single_user(self):
+        configuration = get_instance_configuration(initialization_intent="fresh")
+        owner = get_single_user_owner()
+
+        self.assertEqual(configuration.mode, "single_user")
+        self.assertFalse(configuration.ever_multi_user)
+        self.assertEqual(owner.username, SINGLE_USER_USERNAME)
+        self.assertFalse(owner.has_usable_password())
+        self.assertEqual(self.client.get("/api/health/").status_code, 200)
+
+    def test_validate_only_refuses_uninitialized_database(self):
+        with self.assertRaisesMessage(ImproperlyConfigured, "has not been initialized"):
+            get_instance_configuration(initialization_intent="validate")

@@ -2,9 +2,10 @@ services:
   caddy:
     image: caddy:2-alpine
     env_file:
-      - ${ENV_FILE:?Set ENV_FILE to an env file such as .env.production or dev_env}
+      - ${ENV_FILE:-.env.production}
     depends_on:
-      - frontend
+      frontend:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
