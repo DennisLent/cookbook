@@ -10,7 +10,7 @@ from yt_dlp.utils import DownloadError
 
 from recipes.extraction.utils import validate_public_video_url
 from recipes.models import RecipeImportJob
-from recipes.extraction.services import build_recipe_payload_from_details
+from recipes.extraction.services import build_recipe_payload_from_details, validate_public_website_url
 from recipes.extraction.utils.public_video import PublicVideoDownloadError, download_public_video
 
 
@@ -77,15 +77,36 @@ class RecipeImportJobApiTests(APITestCase):
         delay_mock.assert_called_once_with(job.pk)
         validate_mock.assert_called_once()
 
-    def test_create_recipe_import_job_rejects_unsupported_host(self):
+    @patch("recipes.extraction.services.validate_public_website_url", return_value="website")
+    @patch("recipes.tasks.process_recipe_import_job.delay")
+    def test_create_recipe_import_job_accepts_recipe_website(self, delay_mock, _validate_mock):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("recipe-import-job-list"),
+                {"url": "https://www.bbcgoodfood.com/recipes/creamy-mushroom-pasta"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        job = RecipeImportJob.objects.get()
+        self.assertEqual(job.platform, RecipeImportJob.PLATFORM_WEBSITE)
+        self.assertFalse(job.download_only)
+        self.assertFalse(job.persist_media)
+        delay_mock.assert_called_once_with(job.pk)
+
+    @patch("recipes.extraction.services.validate_public_website_url", return_value="website")
+    def test_recipe_website_rejects_video_only_options(self, _validate_mock):
         response = self.client.post(
             reverse("recipe-import-job-list"),
-            {"url": "https://example.com/video/123"},
+            {
+                "url": "https://www.bbcgoodfood.com/recipes/creamy-mushroom-pasta",
+                "saveVideo": True,
+            },
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data["error"]["code"], "unsupported_host")
+        self.assertEqual(response.data["error"]["code"], "website_video_options_unsupported")
 
     @patch("recipes.tasks.process_recipe_import_job.delay")
     def test_create_recipe_import_job_accepts_youtube_url(self, delay_mock):
@@ -260,6 +281,37 @@ class RecipeImportJobTaskTests(APITestCase):
         self.assertEqual(job.progress_stage, RecipeImportJob.STAGE_DOWNLOADING)
         self.assertEqual(job.error_code, "authentication_required")
 
+    @patch("recipes.tasks.download_public_video")
+    @patch("recipes.tasks.extract_recipe_from_website")
+    def test_process_recipe_import_job_scrapes_website_without_video_download(
+        self,
+        extract_mock,
+        download_mock,
+    ):
+        job = RecipeImportJob.objects.create(
+            user=self.user,
+            source_url="https://www.bbcgoodfood.com/recipes/creamy-mushroom-pasta",
+            platform=RecipeImportJob.PLATFORM_WEBSITE,
+        )
+        extract_mock.return_value = {
+            "title": "Creamy mushroom pasta",
+            "description": "A quick dinner",
+            "instructions": "Boil pasta\nMake sauce",
+            "ingredients_data": [{"ingredient": "Mushrooms", "amount": "250g"}],
+            "tags": [],
+            "image": None,
+        }
+
+        from recipes.tasks import process_recipe_import_job
+
+        process_recipe_import_job.run(job.pk)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, RecipeImportJob.STATUS_DONE)
+        self.assertEqual(job.progress_stage, RecipeImportJob.STAGE_DONE)
+        self.assertEqual(job.extracted_recipe["title"], "Creamy mushroom pasta")
+        download_mock.assert_not_called()
+
     @patch("recipes.tasks.transcribe_wav_with_vosk")
     @patch("recipes.tasks.extract_audio_from_video")
     @patch("recipes.tasks.download_public_video")
@@ -341,6 +393,14 @@ class PublicVideoValidationTests(APITestCase):
             validate_public_video_url("https://youtu.be/HILQ80TNyCk"),
             "youtube",
         )
+
+    @patch(
+        "recipes.extraction.services.socket.getaddrinfo",
+        return_value=[(2, 1, 6, "", ("127.0.0.1", 80))],
+    )
+    def test_validate_public_website_url_rejects_private_addresses(self, _dns_mock):
+        with self.assertRaisesMessage(ValueError, "public website"):
+            validate_public_website_url("http://localhost/recipe")
 
 
 class PublicVideoDownloadTests(APITestCase):

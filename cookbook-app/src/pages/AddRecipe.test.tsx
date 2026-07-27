@@ -99,6 +99,49 @@ describe("AddRecipe import history", () => {
     expect(screen.getByText("Saved recipe video")).toBeInTheDocument();
   });
 
+  it("imports a recipe website without enabling video persistence", async () => {
+    const user = userEvent.setup();
+    const websiteUrl = "https://www.bbcgoodfood.com/recipes/creamy-mushroom-pasta";
+    apiRequestMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === "/tags/") return Promise.resolve([]);
+      if (path === "/recipe-import-jobs/" && !init) return Promise.resolve([]);
+      if (path === "/recipe-import-jobs/" && init?.method === "POST") {
+        return Promise.resolve({
+          id: 31,
+          status: "queued",
+          progressStage: "queued",
+          platform: "website",
+          sourceUrl: websiteUrl,
+          videoOnly: false,
+          saveVideo: false,
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderPage();
+    await user.click(screen.getByRole("tab", { name: "From Link" }));
+    await user.type(screen.getByLabelText(/Recipe Link/i), websiteUrl);
+
+    expect(screen.queryByLabelText("Save video")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save Video" })).not.toBeInTheDocument();
+    const importButton = screen.getByRole("button", { name: "Import Recipe" });
+    expect(importButton).toBeEnabled();
+    await user.click(importButton);
+
+    await waitFor(() => {
+      expect(apiRequestMock).toHaveBeenCalledWith("/recipe-import-jobs/", {
+        method: "POST",
+        headers: { "Idempotency-Key": expect.any(String) },
+        body: JSON.stringify({
+          url: websiteUrl,
+          videoOnly: false,
+          saveVideo: false,
+        }),
+      });
+    });
+  });
+
   it("retries a failed recent import with the original request settings", async () => {
     const user = userEvent.setup();
 

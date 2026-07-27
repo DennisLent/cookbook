@@ -9,7 +9,7 @@ from django.core.files import File
 from django.db import transaction
 from django.utils import timezone
 
-from .extraction.services import extract_recipe_from_transcript
+from .extraction.services import extract_recipe_from_transcript, extract_recipe_from_website
 from .extraction.utils import (
     PublicVideoDownloadError,
     download_public_video,
@@ -39,6 +39,22 @@ def process_recipe_import_job(self, job_id: int):
     job.save(update_fields=["status", "progress_stage", "started_at", "finished_at", "error_code", "error_message", "celery_task_id", "updated_at"])
 
     try:
+        if job.platform == RecipeImportJob.PLATFORM_WEBSITE:
+            job.progress_stage = RecipeImportJob.STAGE_PARSING
+            job.save(update_fields=["progress_stage", "updated_at"])
+            try:
+                extracted_recipe = extract_recipe_from_website(job.source_url)
+            except ValueError as exc:
+                raise PublicVideoDownloadError("website_import_failed", str(exc)) from exc
+            job.progress_stage = RecipeImportJob.STAGE_VERIFYING
+            job.save(update_fields=["progress_stage", "updated_at"])
+            job.extracted_recipe = extracted_recipe
+            job.status = RecipeImportJob.STATUS_DONE
+            job.progress_stage = RecipeImportJob.STAGE_DONE
+            job.finished_at = timezone.now()
+            job.save()
+            return
+
         with TemporaryDirectory(prefix=f"recipe-import-{job.pk}-") as tmpdir:
             video_path, file_size = download_public_video(job.source_url, tmpdir)
             with transaction.atomic():

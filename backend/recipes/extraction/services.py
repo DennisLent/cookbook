@@ -5,11 +5,34 @@ from .utils import (
     extract_recipe_via_ollama,
 )
 import re
+import ipaddress
+import socket
 from tempfile import TemporaryDirectory
+from urllib.parse import urlparse
 from recipe_scrapers import scrape_me
 from ingredient_parser import parse_ingredient
 from recipes.models import Ingredient, get_effective_ollama_model, get_effective_vosk_model_path
 from .utils import download_public_video, extract_audio_from_video, normalize_transcript_text, transcribe_wav_with_vosk, validate_public_video_url
+
+
+def validate_public_website_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Enter a valid public HTTP or HTTPS recipe URL.")
+    if parsed.username or parsed.password:
+        raise ValueError("Recipe URLs containing credentials are not supported.")
+
+    try:
+        addresses = {
+            ipaddress.ip_address(item[4][0])
+            for item in socket.getaddrinfo(parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM)
+        }
+    except (OSError, ValueError) as exc:
+        raise ValueError("The recipe website hostname could not be resolved.") from exc
+
+    if not addresses or any(not address.is_global for address in addresses):
+        raise ValueError("Recipe imports must use a public website address.")
+    return "website"
 
 
 def _clean_text(value) -> str:

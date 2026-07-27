@@ -522,6 +522,7 @@ class RecipeImportJobViewSet(viewsets.GenericViewSet):
         return Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
+        from .extraction.services import validate_public_website_url
         from .extraction.utils import PublicVideoDownloadError, validate_public_video_url
         from .tasks import process_recipe_import_job
 
@@ -541,9 +542,27 @@ class RecipeImportJobViewSet(viewsets.GenericViewSet):
         try:
             platform = validate_public_video_url(source_url)
         except PublicVideoDownloadError as exc:
+            if exc.code != "unsupported_host":
+                return error_response(
+                    code=exc.code,
+                    message=exc.message,
+                    http_status=status.HTTP_400_BAD_REQUEST,
+                    details={"field": "url"},
+                )
+            try:
+                platform = validate_public_website_url(source_url)
+            except ValueError as website_exc:
+                return error_response(
+                    code="invalid_website_url",
+                    message=str(website_exc),
+                    http_status=status.HTTP_400_BAD_REQUEST,
+                    details={"field": "url"},
+                )
+
+        if platform == RecipeImportJob.PLATFORM_WEBSITE and (download_only or persist_media):
             return error_response(
-                code=exc.code,
-                message=exc.message,
+                code="website_video_options_unsupported",
+                message="Saving video is only available for YouTube, Instagram, and TikTok imports.",
                 http_status=status.HTTP_400_BAD_REQUEST,
                 details={"field": "url"},
             )

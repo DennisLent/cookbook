@@ -33,7 +33,7 @@ type RecipeImportJob = {
   id: number;
   status: "queued" | "running" | "done" | "failed";
   progressStage: "queued" | "downloading" | "parsing" | "verifying" | "done" | "failed";
-  platform: "instagram" | "tiktok" | "youtube";
+  platform: "instagram" | "tiktok" | "youtube" | "website";
   sourceUrl: string;
   videoOnly?: boolean;
   saveVideo?: boolean;
@@ -94,6 +94,23 @@ function getImportStageDescription(job: RecipeImportJob) {
         return job.errorMessage || "The importer could not process this video.";
       default:
         return "Video download in progress.";
+    }
+  }
+
+  if (job.platform === "website") {
+    switch (job.progressStage) {
+      case "queued":
+        return "Your website import is queued and waiting for the worker.";
+      case "parsing":
+        return "We are reading the recipe page and extracting its details.";
+      case "verifying":
+        return "We are validating the imported ingredients and instructions.";
+      case "done":
+        return "Imported fields have been filled in below. Review them before saving.";
+      case "failed":
+        return job.errorMessage || "The recipe page could not be imported.";
+      default:
+        return "Website import in progress.";
     }
   }
 
@@ -180,6 +197,15 @@ function deriveOrigin(sourceUrl: string, activeTab: string) {
   }
 
   return sourceUrl.trim() ? "website" : "manual";
+}
+
+function isValidWebsiteUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 export default function AddRecipe() {
@@ -350,7 +376,7 @@ export default function AddRecipe() {
   ) => {
     const normalizedUrl = request.url.trim();
     if (!normalizedUrl) {
-      toast({ title: "Paste a YouTube, Instagram, or TikTok URL first", variant: "destructive" });
+      toast({ title: "Paste a recipe or video URL first", variant: "destructive" });
       return;
     }
 
@@ -379,13 +405,13 @@ export default function AddRecipe() {
         title: options?.startedTitle || (request.videoOnly ? "Video download started" : "Import started"),
         description: options?.startedDescription || (request.videoOnly
           ? "We are downloading the source video so you can save it with the recipe."
-          : "We are downloading and transcribing the video now."),
+          : "We are extracting the recipe details now."),
       });
       options?.done?.();
     } catch (error) {
       toast({
         title: options?.failureTitle || "Failed to start import",
-        description: getApiErrorMessage(error, "The video import job could not be created."),
+        description: getApiErrorMessage(error, "The recipe import job could not be created."),
         variant: "destructive",
       });
     } finally {
@@ -395,10 +421,11 @@ export default function AddRecipe() {
   };
 
   const startImportFromLink = async (videoOnly = false) => {
+    const isVideo = Boolean(getVideoEmbed(sourceUrl));
     await startImportFromRequest({
       url: sourceUrl,
       videoOnly,
-      saveVideo: videoOnly || saveVideo,
+      saveVideo: isVideo && (videoOnly || saveVideo),
     });
   };
 
@@ -544,8 +571,9 @@ export default function AddRecipe() {
   const videoEmbed = sourceUrl ? getVideoEmbed(sourceUrl) : null;
   const importIsActive = importJob?.status === "queued" || importJob?.status === "running";
   const canImportFromLink = Boolean(
-    videoEmbed?.type === "instagram" || videoEmbed?.type === "tiktok" || videoEmbed?.type === "youtube"
+    isValidWebsiteUrl(sourceUrl)
   );
+  const isVideoLink = Boolean(videoEmbed);
   const recentImportHistory = recentImportJobs.slice(0, 5);
 
   const renderRecipeForm = (idPrefix = "") => (
@@ -861,25 +889,27 @@ export default function AddRecipe() {
                     placeholder="Paste YouTube, Instagram, TikTok, or website URL"
                   />
                   <p className="text-sm text-muted-foreground">
-                    Paste a public YouTube, Instagram, or TikTok URL to import ingredients and steps automatically. You can also keep the source video with the recipe, or save the video alone and fill everything else in manually.
+                    Paste a recipe website URL to fill in its title, description, ingredients, and steps. YouTube, Instagram, and TikTok links use video transcription and can optionally keep the source video.
                   </p>
                 </div>
 
-                <div className="flex items-start justify-between gap-4 rounded-lg border bg-muted/30 p-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="saveVideo" className="text-sm font-medium">
-                      Save video
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Keep the downloaded video on the recipe after import finishes.
-                    </p>
+                {isVideoLink && (
+                  <div className="flex items-start justify-between gap-4 rounded-lg border bg-muted/30 p-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="saveVideo" className="text-sm font-medium">
+                        Save video
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Keep the downloaded video on the recipe after import finishes.
+                      </p>
+                    </div>
+                    <Switch
+                      id="saveVideo"
+                      checked={saveVideo}
+                      onCheckedChange={(checked) => setSaveVideo(Boolean(checked))}
+                    />
                   </div>
-                  <Switch
-                    id="saveVideo"
-                    checked={saveVideo}
-                    onCheckedChange={(checked) => setSaveVideo(Boolean(checked))}
-                  />
-                </div>
+                )}
 
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
@@ -890,18 +920,20 @@ export default function AddRecipe() {
                     {(isStartingImport || importIsActive) && !isSavingVideoOnly && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     Import Recipe
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => startImportFromLink(true)}
-                    disabled={isStartingImport || isSavingVideoOnly || importIsActive || !canImportFromLink}
-                  >
-                    {(isSavingVideoOnly || importIsActive) && !isStartingImport && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Save Video
-                  </Button>
+                  {isVideoLink && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => startImportFromLink(true)}
+                      disabled={isStartingImport || isSavingVideoOnly || importIsActive || !canImportFromLink}
+                    >
+                      {(isSavingVideoOnly || importIsActive) && !isStartingImport && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Save Video
+                    </Button>
+                  )}
                   {!canImportFromLink && sourceUrl.trim() && (
                     <p className="text-sm text-muted-foreground">
-                      Automatic import currently supports public YouTube, Instagram, and TikTok URLs only.
+                      Enter a complete public HTTP or HTTPS recipe URL.
                     </p>
                   )}
                 </div>
